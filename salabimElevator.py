@@ -37,8 +37,9 @@ class Operator(sim.Component):
             print(f"Tray: {item_tray} with item: {item_name}")
             elevator.setTarget(item_tray)
             elevator.activate()
-            elevator_done.reset()
-            self.wait(elevator_done)    # wait until the elevator is back
+            # wait until the elevator is back
+            elevator_done.reset()       # Reset the sim.State "elevator_done".
+            self.wait(elevator_done)    # Wait until elevator_done.set is called (in elevator process)
             print(f"The tray with the item is in front of the operator at time {env.now()}")
 
             # Handle the item
@@ -53,8 +54,9 @@ class Operator(sim.Component):
             print(f"The lift is now returning the item")
             elevator.switchTask()
             elevator.activate()
+            # wait until the elevator is back
             elevator_done.reset()
-            self.wait(elevator_done)  # wait until the elevator is back
+            self.wait(elevator_done)
 
             # The operator can handle the next request (the elevator might still be active returning)
             elevator.switchTask()  # switches back to retrieveTray
@@ -231,7 +233,6 @@ warehouse.addItem(Item(name="Plakband"), tray_id=3)
 # Make requests
 requests = []
 requests.append(Request(item_name="Schroevendraaier"))
-requests.append(Request(item_name="Plakband"))
 
 # Create the Elevator
 elevator = Elevator()
@@ -242,9 +243,3 @@ operator = Operator()
 
 # Run the simulation for 30 time units
 env.run(till=30)
-
-
-
-
-
-
