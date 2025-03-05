@@ -18,8 +18,8 @@ class Scheduler(sim.Component):
         self.warehouse = Warehouse(WAREHOUSE_HEIGHT)
 
         # Add random items to the Warehouse (stock)
-        self.warehouse.addItem(Item(name="Schroevendraaier"), tray_id=1)
-        self.warehouse.addItem(Item(name="Plakband"), tray_id=1)
+        self.warehouse.addItem(Item(name="Schroevendraaier"), tray_id=0)
+        self.warehouse.addItem(Item(name="Plakband"), tray_id=0)
 
         # Make requests
         self.requests = []
@@ -38,10 +38,12 @@ class Scheduler(sim.Component):
 
 
 class Operator(sim.Component):
-    def setup(self, warehouse, requests, elevator):
-        self.warehouse = warehouse # The assigned warehouse
+    def __init__(self, warehouse, requests, elevator, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.warehouse = warehouse  # The assigned warehouse
         self.requests = requests
         self.elevator = elevator
+        self.elevator.operator = self  # Link the operator to the elevator
 
         # speeds/times
         self.retrieve_item_time = 1
@@ -52,22 +54,26 @@ class Operator(sim.Component):
         # Process the requests
         for request in self.requests:
             item_name = request.item_name
+            print(f"\nProcessing the request: {item_name}")
+
             # Search in which tray the item is
-            tray_id_item = self.warehouse.locate_item(item_name)
-            print(f"\nThe item \"{item_name}\" is in tray {tray_id_item}")
+            item_tray = self.warehouse.locate_item(item_name)
+            print(f"The item \"{item_name}\" is in tray {item_tray}")
 
             # Operator starts the elevator
             print(f"Operator called the elevator to retrieve item at time {env.now()}")
 
             # If the elevator is still active, wait until it is finished
-            if(self.elevator.status() == sim.passive):
+            if(self.elevator.status() != sim.passive):
                 print("The elevator is still active. Waiting until it is finished...")
                 self.wait(self.elevator)
                 print(f"The elevator is ready again at time {env.now()}")
 
             # Let the elevator get the item.
-            self.elevator.setTarget(tray_id_item)
+            print(f"Tray: {item_tray} with item: {item_name}")
+            self.elevator.setTarget(item_tray)
             self.elevator.activate()
+            self.passivate()  # Passivate the operator until reactivated by the elevator
             print(f"The tray with the item is in front of the operator at time {env.now()}")
             # The elevator is not active now
 
@@ -106,10 +112,15 @@ class Elevator(sim.Component):
         self.target_level = None
         self.target_tray_number = None  # which one of the 2 trays it is on a certain level
 
-    def addTarget(self, target_tray_id):
-        self.target_tray_id = target_tray_id
-        self.target_level = target_tray_id / 2
-        self.target_tray_number = target_tray_id % 2    # is '0' or '1'
+        # Only start when operator calls for it
+        self.operator = None
+        self.finished_event = sim.Event(action=self.notify_operator)
+        self.passivate()
+
+    def setTarget(self, target_tray):
+        self.target_tray_id = target_tray.ID
+        self.target_level = target_tray.ID // 2
+        self.target_tray_number = target_tray.ID % 2    # is '0' or '1'
 
     def switchTask(self):
         if(self.task == "retrieveTray"):
@@ -165,11 +176,15 @@ class Elevator(sim.Component):
 
         # The lift can stay at its current location since there is only 1 elevator
 
+    def notify_operator(self):
+        self.operator.activate()  # Reactivate the operator
+
     def process(self):
         if(self.task == "retrieveTray"):
             self.retrieveTray()
         else:
             self.returnTray()
+        self.finished_event.trigger()  # Trigger the event when the process is done
 
 
 class Warehouse:
@@ -202,11 +217,11 @@ class Warehouse:
         else:
             print(f"Invalid Tray ID {tray_id}! Must be between 0 and {self.height - 1}.")
 
-    def locate_item(self, locate_item):
+    def locate_item(self, item_name):
         """ Locate the tray that contains an item with the given name. """
         for tray in self.trays:  # Loop through all trays
             for current_item in tray.items:  # Loop through items in each tray
-                if current_item.name == locate_item.name:  # Check if the name matches
+                if current_item.name == item_name:  # Check if the name matches
                     return tray  # Return the tray that contains the item
         print(f"Item not present in the warehouse.")
         return None  # Return None if the item is not found
@@ -215,9 +230,13 @@ class Tray:
     def __init__(self, ID):
         self.ID = ID
         # There are 2 trays for each level
-        self.level = ID / 2
+        self.level = ID // 2
         self.trayNumber = ID % 2
         self.items = []
+
+    def __str__(self):
+        return f"Tray(ID={self.ID})"
+
     def add_item(self, item):
         self.items.append(item)
     def remove_item(self, item):
@@ -230,6 +249,8 @@ class Item:
     def __init__(self, name):
         self.name = name
         self.tray_ID = None
+    def __str__(self):
+        return f"Item(name={self.name})"
 
 
 class Request:
@@ -243,6 +264,9 @@ env = sim.Environment(trace=False)
 
 # Create the Scheduler (this starts automatically when the environment starts running)
 scheduler = Scheduler()
+
+# Some states for synchronization
+
 
 # Run the simulation for 30 time units
 env.run(till=30)
