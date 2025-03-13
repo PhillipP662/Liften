@@ -18,48 +18,53 @@ class Operator(sim.Component):
         self.press_button_time = 1
 
     def process(self):
-        # Process the requests
+        # Process the requests. Each request is a list of items
         for request in requests:
-            print("\n\n-------------- NEW REQUEST --------------")
+            print("\n\n============================= NEW ORDER =============================")
+            for item_name in request.item_names:
+                print(f"-------  {item_name.upper()} -------")
+                # Retreive request information
+                print(f"Processing the request: {item_name}\n")
 
-            # Retreive request information
-            item_name = request.item_name
-            print(f"\nProcessing the request: {item_name}")
+                # Search in which tray the item is
+                item_tray = warehouse.locate_item(item_name)
+                if(item_tray==None):
+                    unfulfilled_requests.append(request)
+                    # Volledige request mag niet gedaan worden. Op voorhand check of volledige order op stock?
+                    raise Exception("Nog niet klaar, verder werken")
+                print(f"The item \"{item_name}\" is in tray {item_tray}")
 
-            # Search in which tray the item is
-            item_tray = warehouse.locate_item(item_name)
-            print(f"The item \"{item_name}\" is in tray {item_tray}")
+                # Operator starts the elevator
+                print(f"Operator called the elevator to retrieve item at time {env.now()}")
 
-            # Operator starts the elevator
-            print(f"Operator called the elevator to retrieve item at time {env.now()}")
+                # Let the elevator get the item.
+                print(f"Tray: {item_tray} with item: {item_name}")
+                elevator.setTarget(item_tray)
+                elevator.activate()
 
-            # Let the elevator get the item.
-            print(f"Tray: {item_tray} with item: {item_name}")
-            elevator.setTarget(item_tray)
-            elevator.activate()
-            # wait until the elevator is back
-            elevator_done.reset()       # Reset the sim.State "elevator_done".
-            self.wait(elevator_done)    # Wait until elevator_done.set is called (in elevator process)
-            print(f"The tray with the item is in front of the operator at time {env.now()}")
+                # wait until the elevator is back
+                elevator_done.reset()       # Reset the sim.State "elevator_done".
+                self.wait(elevator_done)    # Wait until elevator_done.set is called (in elevator process)
+                print(f"The tray with the item is in front of the operator at time {env.now()}")
 
-            # Handle the item
-            self.hold(self.retrieve_item_time)
-            print(f"The operator finished retrieving the item at time {env.now()}")
-            self.hold(self.handle_item_time)
-            print(f"The operator finished handling the item at time {env.now()}")
+                # Handle the item
+                self.hold(self.retrieve_item_time)
+                print(f"The operator finished retrieving the item at time {env.now()}")
+                self.hold(self.handle_item_time)
+                print(f"The operator finished handling the item at time {env.now()}")
 
-            # Press a button to return the tray. Elevator is activated again
-            self.hold(self.press_button_time)
-            print(f"The operator finished pressing the elevator button at time {env.now()}")
-            print(f"The lift is now returning the item")
-            elevator.switchTask()
-            elevator.activate()
-            # wait until the elevator is back
-            elevator_done.reset()
-            self.wait(elevator_done)
+                # Press a button to return the tray. Elevator is activated again
+                self.hold(self.press_button_time)
+                print(f"The operator finished pressing the elevator button at time {env.now()}")
+                print(f"The lift is now returning the item")
+                elevator.switchTask()
+                elevator.activate()
+                # wait until the elevator is back
+                elevator_done.reset()
+                self.wait(elevator_done)
 
-            # The operator can handle the next request (the elevator might still be active returning)
-            elevator.switchTask()  # switches back to retrieveTray
+                # The operator can handle the next request (the elevator might still be active returning)
+                elevator.switchTask()  # switches back to retrieveTray
 
 class Elevator(sim.Component):
     def setup(self):
@@ -157,7 +162,7 @@ class Warehouse:
         self.trays = [Tray(i) for i in range(height*2)]
 
     def addItem(self, item, tray_id):
-        if 0 <= tray_id < self.height:  # Ensure tray_id is valid
+        if 0 <= tray_id < self.height*2:  # Ensure tray_id is valid
             # Save the tray_id in the item for easy retrieval
             item.tray_ID = tray_id
             # Add the item
@@ -212,8 +217,8 @@ class Item:
 
 
 class Request:
-    def __init__(self, item_name):
-        self.item_name = item_name  # The item that needs to be retrieved
+    def __init__(self, item_names):
+        self.item_names = item_names  # The items that needs to be retrieved
 
 
 """ Main """
@@ -229,17 +234,21 @@ warehouse = Warehouse(WAREHOUSE_HEIGHT)
 # Add random items to the Warehouse (stock)
 warehouse.addItem(Item(name="Schroevendraaier"), tray_id=3)
 warehouse.addItem(Item(name="Plakband"), tray_id=3)
+warehouse.addItem(Item(name="Boor"), tray_id=5)
+warehouse.addItem(Item(name="Tang"), tray_id=3)
 
 # Make requests
 requests = []
-requests.append(Request(item_name="Schroevendraaier"))
-requests.append(Request(item_name="Plakband"))
+requests.append(Request(item_names=["Schroevendraaier", "Plakband"]))
+requests.append(Request(item_names=["Boor", "Plakband", "Tang"]))
+
+# List for unfulfilled requests (items not in stock)
+unfulfilled_requests = []
 
 # Create the Elevator
 elevator = Elevator()
 
-# Create an Operator and give it the necessary objects
-# The operator is the only Component that executes its process method from the start
+# Create an Operator. It has access to the other objects in the Main (Elevator, requests, ...)
 operator = Operator()
 
 # Run the simulation for 30 time units

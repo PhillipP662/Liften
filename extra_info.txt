@@ -1,2 +1,8 @@
 vertical lift module
 
+- Doel: Hoeveel pakkjes per uur
+- Niet-gedane orders niet doen en in aparte lijst steken (bv. overgeslagenRequests)
+- Hoe lang duurt het om orders te verwerken (totaal uur, niet in dagen werken)
+
+
+
