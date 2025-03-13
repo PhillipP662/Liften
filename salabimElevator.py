@@ -233,6 +233,7 @@ warehouse.addItem(Item(name="Plakband"), tray_id=3)
 # Make requests
 requests = []
 requests.append(Request(item_name="Schroevendraaier"))
+requests.append(Request(item_name="Plakband"))
 
 # Create the Elevator
 elevator = Elevator()
