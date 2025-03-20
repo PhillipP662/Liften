@@ -24,7 +24,7 @@ TWO_TRAY_ROWS = True  # Kies of er één of twee rijen trays zijn
 speed= 1
 
 event_log = [];
-
+unfulfilled_requests = [];
 
 class Operator(sim.Component):
     def setup(self):
