@@ -1,0 +1,49 @@
+
+//Frame
+env.background_color("kleur")
+
+
+// Objecten -> Sim."soort"(spec="afmetingen",text ="eventuele tekst")
+sim.AnimatePolygon(spec=(100, 100, 300, 100, 200, 190), text="This is\na polygon")
+sim.AnimateLine(spec=(100, 200, 300, 300), text="This is a line")
+sim.AnimateRectangle(spec=(100, 10, 300, 30), text="This is a rectangle")
+sim.AnimateCircle(radius=60, x=100, y=400, text="This is a cicle")
+sim.AnimateCircle(radius=60, radius1=30, x=300, y=400, text="This is an ellipse")
+sim.AnimatePoints(spec=(100, 500, 150, 550, 180, 570, 250, 500, 300, 500), text="These are points")
+sim.AnimateText(text="This is a one-line text", x=100, y=600)
+sim.AnimateText("dsqd")
+sim.AnimateImage("naam_file", "X_Vales", "Y_values", "Breedte", text="text", fontsize="Font") -> hier kunt ge ook Gifs toevoegen 
+
+//Animation queus
+sim.queu -> maakt een queue aan
+sim.AnimateMonitor() -> Toont eigenlijk Grafieken etc.
+queue.length.print_histogram -> Geeft een histogram van de queues
+queus.print_info > Geeft iformatie van de queue.
+sim.AnimateQueue -> Gaat uw queue visualiseren met simpele blokken. Ge kunt hier locatie,direction,title en soort meegeven
+qa3 = sim.AnimateQueue(q, x=100, y=440, title='queue, text only', direction='s', id='text/Groen')
+
+//Animation declaratie
+/ge kunt animatie paramaters ook voorstellen als classes. Hierdoor worden ze dynamisch
+Vb: class X(sim.Component:
+    def setup(self):
+        self.message='Hello'
+        sim.AnimateText(text=lambda self=self: self.message)
+    -> an.image = "im2.jpg"
+
+//Animatie van tekst
+sim.Animate.__init__(self, text="", x0=100, x1=1000, t1=env.now() + 10)
+Laat u tekst animeren op basis van de huidige tijd. Het pakt de system time als een variable om de locatie op de X-as te bepalen
+Kan dus ook voor objecten zoals een square of cirkle
+
+//Layers
+Ge kunt objecten layeren. Dit kan handig zijn om een basis layout te maken van uw lift en dan de objecten enz er bovenop te laten werken
+-> sim.AnimateRectangle(spec=(0, 0, 200, 200), fillcolor="blue" ,text="layer=-1", layer=-1) Layer = x is hier belangerijk
+
+
+
+
+
+
+
+
+
