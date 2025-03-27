@@ -6,3 +6,6 @@ vertical lift module
 
 
 
+- 1     m/s2
+- 0.8   m/s2
+

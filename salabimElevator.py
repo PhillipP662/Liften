@@ -1,3 +1,5 @@
+import math
+
 import salabim as sim
 
 
@@ -5,7 +7,6 @@ import salabim as sim
 sim.yieldless(True)
 
 # Adjustable parameters
-WAREHOUSE_HEIGHT = 4        # with 2 trays per level -> WAREHOUSE_HEIGHT*2 total trays
 OPERATOR_LEVEL = 0          # At which level the operator is working
 AMOUNT_OF_ELEVATORS = 1     # DON'T CHANGE YET! Not yet implemented for 1+ elevators
 
@@ -23,8 +24,8 @@ TRAY_X_RIGHT = 650
 TWO_TRAY_ROWS = True  # Kies of er één of twee rijen trays zijn
 speed= 1
 
-event_log = [];
-unfulfilled_requests = [];
+event_log = []
+unfulfilled_requests = []
 
 class Operator(sim.Component):
     def setup(self):
@@ -55,7 +56,7 @@ class Operator(sim.Component):
 
                 # Let the elevator get the item.
                 print(f"Tray: {item_tray} with item: {item_name}")
-                elevator.setTarget(item_tray)
+                elevator.setTarget(item_tray, item_name)
                 elevator.activate()
 
                 # wait until the elevator is back
@@ -88,7 +89,9 @@ class Elevator(sim.Component):
         self.task = "retrieveTray"      # retrieveTray: bring tray to operator | returnTray: return tray to original place
 
         # different speeds
-        self.travel_speed = 2   # Time to move one floor
+        #self.travel_speed = 2   # Time to move one floor
+        self.travel_acceleration = 1
+        self.max_travel_speed = 2
         self.retrieve_time = 1  # Time to retrieve the tray from the warehouse on the elevator
         self.return_time = 1    # Time to return the tray back into the warehouse
         self.present_time = 1   # Time to get the tray from the elevator to the operator
@@ -100,13 +103,13 @@ class Elevator(sim.Component):
 
         # Only start when operator calls for it
         self.passivate()
-        self.item = None;
+        self.item = None
 
     def setTarget(self, target_tray, item_name):
         self.target_tray_id = target_tray.ID
         self.target_level = target_tray.ID // 2
         self.target_tray_number = target_tray.ID % 2    # is '0' or '1'
-        self.item = item_name;
+        self.item = item_name
 
     def switchTask(self):
         if(self.task == "retrieveTray"):
@@ -116,12 +119,40 @@ class Elevator(sim.Component):
         else:
             print(f"\n\nERROR: Elevator task is unusual!\n\n")
 
+    def travelTime(self, level_A, level_B):
+        """
+            Calculates the time to travel a certain distance with acceleration and maximum speed,
+            starting and ending at speed 0.
+        """
+        distance = abs(level_B - level_A)
+        acceleration = self.travel_acceleration
+        max_speed = self.max_travel_speed
+
+        # Peak speed if accelerating and decelerating without hitting maximum speed
+        peak_speed = math.sqrt(acceleration * distance / 2)
+
+        if peak_speed <= max_speed:
+            # Triangular velocity profile (maximum speed is not hit)
+            total_time = math.sqrt(2 * distance / acceleration)
+        else:
+            # Trapezoidal velocity profile (maximum speed is hit)
+            acceleration_time = max_speed / acceleration
+            acceleration_distance = 0.5 * max_speed * acceleration_time  # distance while accelerating
+            deceleration_time = acceleration_time
+            deceleration_distance = acceleration_distance
+            cruise_distance = distance - acceleration_distance - deceleration_distance # the distance you travel at max speed
+            cruise_time = cruise_distance / max_speed
+            total_time = acceleration_time + deceleration_time + cruise_time
+
+        return total_time
+
+
     def retrieveTray(self):
         # Go to the target level, get or release the item(s)
         # Go to the target level
         start_loc = self.current_level
-        start_time = env.now();
-        travel_time = abs(self.target_level - self.current_level) * self.travel_speed
+        start_time = env.now()
+        travel_time = self.travelTime(self.current_level, self.target_level)
         print(f"\nElevator going from level {self.current_level} to level {self.target_level} at time {env.now()}")
         self.hold(travel_time)
         self.current_level = self.target_level
@@ -132,7 +163,7 @@ class Elevator(sim.Component):
         print(f"Tray is loaded on elevator at time {env.now()}")
 
         # Go to the operator
-        travel_time = abs(OPERATOR_LEVEL - self.current_level) * self.travel_speed
+        travel_time = self.travelTime(OPERATOR_LEVEL, self.current_level)
         print(f"Elevator going from level {self.current_level} to level {OPERATOR_LEVEL} at time {env.now()}")
         self.hold(travel_time)
         self.current_level = OPERATOR_LEVEL
@@ -158,7 +189,7 @@ class Elevator(sim.Component):
         print(f"\nTray is loaded on elevator at time {env.now()}")
 
         # Go to the target level
-        travel_time = abs(self.target_level - self.current_level) * self.travel_speed
+        travel_time = self.travelTime(self.target_level, self.current_level)
         print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {env.now()}")
         self.hold(travel_time)
         self.current_level = self.target_level
@@ -278,20 +309,19 @@ warehouse = Warehouse(WAREHOUSE_HEIGHT)
 # Add random items to the Warehouse (stock)
 warehouse.addItem(Item(name="Schroevendraaier"), tray_id=3)
 warehouse.addItem(Item(name="Plakband"), tray_id=3)
-warehouse.addItem(Item(name="Schoen"),tray_id=2);
+warehouse.addItem(Item(name="Schoen"),tray_id=2)
 # Make requests
 requests = []
-requests.append(Request(item_name="Schroevendraaier"))
-requests.append(Request(item_name="Schoen"))
-
-# Create the Elevator
-elevator = Elevator()
+requests.append(Request(item_names=["Schroevendraaier"]))
+requests.append(Request(item_names=["Schoen"]))
 
 # Create an Operator and give it the necessary objects
 # The operator is the only Component that executes its process method from the start
 operator = Operator()
 elevator = Elevator()
-operator.process();
+
+env.run(30)
+
 # Start de simulatie
 for event in event_log:
     print(event)
@@ -302,15 +332,15 @@ for event in event_log:
 BASE_Y = SCREEN_CENTER_Y - (WAREHOUSE_HEIGHT // 2) * LEVEL_HEIGHT  # Onderste level = 0
 
 sim.yieldless(False)  # Zorg ervoor dat we 'yield' kunnen gebruiken
-event_log = [
-    EventElevator("Schroevendraaier", start_locatie=1, start_tijd=2, eind_locatie=4, eind_tijd=5),
-    EventElevator("Schoen", start_locatie=4, start_tijd=6, eind_locatie=1, eind_tijd=8),
-    EventElevator("Boek", start_locatie=1, start_tijd=9, eind_locatie=5, eind_tijd=12),
-    EventElevator("Laptop", start_locatie=2, start_tijd=13, eind_locatie=2, eind_tijd=16),
-    EventElevator("Waterfles", start_locatie=2, start_tijd=17, eind_locatie=3, eind_tijd=19),
-    EventElevator("Notitieboek", start_locatie=3, start_tijd=20, eind_locatie=2, eind_tijd=23),
-    EventElevator("Hoofdtelefoon", start_locatie=2, start_tijd=24, eind_locatie=5, eind_tijd=27),
-]
+# event_log = [
+#     EventElevator("Schroevendraaier", start_locatie=1, start_tijd=2, eind_locatie=4, eind_tijd=5),
+#     EventElevator("Schoen", start_locatie=4, start_tijd=6, eind_locatie=1, eind_tijd=8),
+#     EventElevator("Boek", start_locatie=1, start_tijd=9, eind_locatie=5, eind_tijd=12),
+#     EventElevator("Laptop", start_locatie=2, start_tijd=13, eind_locatie=2, eind_tijd=16),
+#     EventElevator("Waterfles", start_locatie=2, start_tijd=17, eind_locatie=3, eind_tijd=19),
+#     EventElevator("Notitieboek", start_locatie=3, start_tijd=20, eind_locatie=2, eind_tijd=23),
+#     EventElevator("Hoofdtelefoon", start_locatie=2, start_tijd=24, eind_locatie=5, eind_tijd=27),
+# ]
 env = sim.Environment(trace=False)
 env.animate(True)
 
