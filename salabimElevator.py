@@ -310,9 +310,9 @@ def calculate_travel_time(start, end):
     s_tot = abs(end - start)
 
     # Constants
-    v_max = 1
-    a_max = 1
-    j_max = 1
+    v_max = 0.6     # m/s
+    a_max = 1.0     # m/s^2
+    j_max = 20      # m/s^3
 
     ### Determine the type of trajectory shape. There are 3 values used for the conditions: ###
     # Value 1
