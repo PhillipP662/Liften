@@ -5,6 +5,8 @@ from pathlib import Path
 from rectpack import newPacker
 import pandas as pd
 
+from Dataverwerking_code.Preprocessing import load_simulation
+
 
 def load_item_dimensions(file_path):
     """
@@ -372,41 +374,42 @@ def calculate_unused_space(tray_items, tray_width, tray_height):
 def main():
     print("Start simulatie")
     # Load all onze Simulated bestellingen en Augemented bestellingen en dimensiematrix
-    # sim_loaded = load_simulation("sim_output.csv")
-    # augmented_loaded = load_simulation("augmented_output.csv")
+    #sim_loaded = load_simulation("sim_output.csv")
+    augmented_loaded = load_simulation("augmented_output.csv")
     # loaded = load_saved_item_dimensions('item_dims.json')
     tray_width = 1.0
     tray_height = 1.2
     max_trays = 100
 
-    # dimensions = load_item_dimensions("item_dims.json")
-    # ordered_codes = load_ordered_items("sim_output.csv")  # of augmented_output.csv
+    dimensions = load_item_dimensions("item_dims.json")
+    ordered_codes = load_ordered_items("augmented_output.csv")  # of augmented_output.csv
 
-    ordered_item_codes = [
-        "A", "B", "A", "C", "B", "A", "D", "E", "F", "G", "B", "C", "H", "I", "J", "A", "B", "C"
-    ]
-    all_dimensions = {
-        "A": (0.4, 0.3),  # komt vaak voor
-        "B": (0.3, 0.3),
-        "C": (0.5, 0.2),
-        "D": (0.6, 0.6),
-        "E": (0.2, 0.2),
-        "F": (0.7, 0.4),
-        "G": (0.5, 0.5),
-        "H": (0.3, 0.6),
-        "I": (0.4, 0.4),
-        "J": (0.6, 0.2)
-    }
-    items = get_ordered_item_dimensions(ordered_item_codes, all_dimensions)
-    # print("Greedy sorted: ")
-    # tray_items, not_placed = fill_trays_Greedy(items, tray_width, tray_height, max_trays)
+    # ordered_item_codes = [
+    #     "A", "B", "A", "C", "B", "A", "D", "E", "F", "G", "B", "C", "H", "I", "J", "A", "B", "C"
+    # ]
+    # all_dimensions = {
+    #     "A": (0.4, 0.3),  # komt vaak voor
+    #     "B": (0.3, 0.3),
+    #     "C": (0.5, 0.2),
+    #     "D": (0.6, 0.6),
+    #     "E": (0.2, 0.2),
+    #     "F": (0.7, 0.4),
+    #     "G": (0.5, 0.5),
+    #     "H": (0.3, 0.6),
+    #     "I": (0.4, 0.4),
+    #     "J": (0.6, 0.2)
+    # }
+
+
+    items = get_ordered_item_dimensions(ordered_codes, dimensions)
+    print("Greedy sorted: ")
+    tray_items, not_placed = fill_trays_Greedy(items, tray_width, tray_height, max_trays)
     # print("Greedy not Sorted: ")
     # tray_items, not_placed = fill_trays_sequential(items, tray_width, tray_height, max_trays)
     # print("RandomItem&Tray_Bestfit: ")
     # tray_items, not_placed = fill_trays_random_best_fit(items, tray_width, tray_height, max_trays)
-    print("Frequenty greedy")
-    tray_items, not_placed = fill_trays_by_frequency(ordered_item_codes, all_dimensions, tray_width, tray_height,
-                                                     max_trays)
+    #print("Frequenty greedy")
+    #tray_items, not_placed = fill_trays_by_frequency(ordered_item_codes, all_dimensions, tray_width, tray_height,max_trays)
 
     print_tray_results(tray_items, not_placed, items)
     unused_per_tray, total_unused = calculate_unused_space(tray_items, tray_width, tray_height)
