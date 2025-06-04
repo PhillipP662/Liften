@@ -1,0 +1,8 @@
+
+- NIET: Bij operator op het einde: wacht tot lift de tray terug heeft geplaatst -> Dit hoeft niet (kan aan volgende order beginnen terwijl de lift bezig is)
+    -> Of misschien ook niet, operator heeft lift nodig voor volgende order dus boeit niet veel
+
+-
+
+
+
