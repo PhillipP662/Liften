@@ -5,6 +5,8 @@ from pathlib import Path
 from rectpack import newPacker, MaxRectsBaf
 import pandas as pd
 
+from Dataverwerking_code.Preprocessing import load_simulation
+
 
 def load_simulation(filename):
     # lees CSV en groepeer terug naar dict {date: [item_codes]}
