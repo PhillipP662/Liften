@@ -23,11 +23,11 @@ def save_simulation(sim_data: dict[datetime, list[str]], filename: str) -> None:
 def load_excel_data(file_paths: list[str], sheet_name: str = 'BestellingDensity') -> tuple[list[float], pd.Series, dict[str, pd.Series]]:
     """
     Leest Excel-bestanden in en berekent:
-    1) daily_rates_per_file: gemiddelde orders per dag per bestand
+    1) hourly_rates_per_file: gemiddelde orders per uur per bestand
     2) global_freq_series: totale frequentie per itemcode over alle bestanden
     3) file_freqs: dict per bestand van itemcode->frequentie
     """
-    daily_rates: list[float] = []
+    hourly_rates: list[float] = []
     file_freqs: dict[str, pd.Series] = {}
 
     for path_str in file_paths:
@@ -35,10 +35,10 @@ def load_excel_data(file_paths: list[str], sheet_name: str = 'BestellingDensity'
         df = pd.read_excel(path, sheet_name=sheet_name)
         df.rename(columns=lambda c: c.strip(), inplace=True)
 
-        # Bereken daily rate
+        # Bereken hourly rate
         start, end = df['Creation Dt'].min(), df['Creation Dt'].max()
-        days = (end - start).total_seconds() / 86400
-        daily_rates.append(len(df) / days)
+        hours = (end - start).total_seconds() / 3600
+        hourly_rates.append(len(df) / hours)
 
         # Frequentie per bestand
         fname = path.stem
@@ -49,20 +49,20 @@ def load_excel_data(file_paths: list[str], sheet_name: str = 'BestellingDensity'
     freq_df['Total'] = freq_df.sum(axis=1)
     global_freq_series = freq_df['Total'].sort_values(ascending=False)
 
-    return daily_rates, global_freq_series, file_freqs
+    return hourly_rates, global_freq_series, file_freqs
 
 def simulate_period(
     start_date: datetime,
-    days: int,
-    daily_rates: list[float],
+    hours: int,
+    hourly_rates: list[float],
     freq_distribution: pd.Series,
     dist_name: str = 'global'
 ) -> dict[datetime, list[str]]:
     """
-    Simuleert orders per dag:
+    Simuleert orders per uur:
     - start_date: datum waarop simulatie begint
-    - days: aantal dagen te simuleren
-    - daily_rates: lijst van lambda-waarden
+    - hours: aantal uren te simuleren
+    - hourly_rates: lijst van lambda-waarden
     - freq_distribution: pd.Series(index=item_code, value=gewichten)
     - dist_name: naam van de distributie
 
@@ -72,11 +72,11 @@ def simulate_period(
     weights = (freq_distribution / freq_distribution.sum()).tolist()
 
     sim_output: dict[datetime, list[str]] = {}
-    print(f"Simulatie van {start_date.date()} over {days} dagen met '{dist_name}' distributie")
+    print(f"Simulatie van {start_date.date()} over {hours} uren met '{dist_name}' distributie")
 
-    for i in range(days):
-        current_date = start_date + timedelta(days=i)
-        lam = random.choice(daily_rates)
+    for i in range(hours):
+        current_date = start_date + timedelta(hours=i)
+        lam = random.choice(hourly_rates)
         n_orders = np.random.poisson(lam)
         picks = random.choices(codes, weights=weights, k=n_orders)
         sim_output[current_date] = picks
@@ -84,12 +84,12 @@ def simulate_period(
     return sim_output
 
 
-def get_daily_topk(
+def get_hourly_topk(
     sim_output: dict[datetime, list[str]],
     k
 ) -> pd.DataFrame:
     """
-    Maakt DataFrame met per dag de top-k meest opgehaalde items:
+    Maakt DataFrame met per uur de top-k meest opgehaalde items:
     - Kolommen: item_1, freq_1, ..., item_k, freq_k, total
     - Index: datum
     """
@@ -121,7 +121,7 @@ def augment_simulation(
     source_name: str
 ) -> dict[datetime, list[str]]:
     """
-    Augmenteert elke dag met extra picks gebaseerd op bron en mode
+    Augmenteert elke uur met extra picks gebaseerd op bron en mode
     """
     augmented: dict[datetime, list[str]] = {}
     for date, picks in sim_output.items():
@@ -144,7 +144,7 @@ def main():
     ]
 
     # 1) data inladen
-    daily_rates, global_freq, file_freqs = load_excel_data(bestandspaden)
+    hourly_rates, global_freq, file_freqs = load_excel_data(bestandspaden)
 
     code_lists = {f: list(freq.index) for f, freq in file_freqs.items()}
     weight_lists = {f: (freq / freq.sum()).tolist() for f, freq in file_freqs.items()}
@@ -165,14 +165,14 @@ def main():
     # 4) Simulatieduur
     start_str = input("Startdatum (YYYY-MM-DD): ")
     start_date = datetime.fromisoformat(start_str)
-    days = int(input("Aantal dagen voor simulatie: "))
+    hours = int(input("Aantal uren voor simulatie: "))
 
     # 5) Simuleer
     freq_dist = global_freq if choice == 'global' else file_freqs[choice]
-    sim = simulate_period(start_date, days, daily_rates, freq_dist, dist_name=choice)
-    topk_df = get_daily_topk(sim, days)
-    print("\n=== Dagelijkse top-5 na simulatie ===")
-    print(topk_df.head(days))
+    sim = simulate_period(start_date, hours, hourly_rates, freq_dist, dist_name=choice)
+    topk_df = get_hourly_topk(sim, hours)
+    print("\n=== Uurlijkse top-5 na simulatie ===")
+    print(topk_df.head(hours))
 
     # 6) Augmentatie vraag
     aug_answer = input("Wil je de data augmenteren? (ja/nee): ")
@@ -190,14 +190,14 @@ def main():
             mode = input("Ongeldige mode. Kies 'fixed' of 'percent': ")
 
         if mode == 'fixed':
-            value = float(input("Aantal extra items per dag (int): "))
+            value = float(input("Aantal extra items per uur (int): "))
         else:
             value = float(input("Percentage extra items (bv. 0.2 voor 20%): "))
 
         aug_sim = augment_simulation(sim, code_lists, weight_lists, mode, value, src_choice)
-        aug_topk_df = get_daily_topk(aug_sim, days)
-        print("\n=== Dagelijkse top-5 na augmentatie ===")
-        print(aug_topk_df.head(days))
+        aug_topk_df = get_hourly_topk(aug_sim, hours)
+        print("\n=== Uurlijkse top-5 na augmentatie ===")
+        print(aug_topk_df.head(hours))
     else:
         print("Geen augmentatie toegepast.")
 

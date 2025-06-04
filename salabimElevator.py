@@ -1,14 +1,16 @@
 import math
+from collections import Counter
+
 import salabim as sim
 import yaml
 from types import SimpleNamespace
-
+from salabim import SimulationStopped
 
 ''' =============== Global parameters and variables =============== '''
 # Ensure fully yieldless mode (default is True, but let's be explicit)
 sim.yieldless(False)
 
-# Load configuration file as YAML file
+# Load configuration file which is a YAML file
 def load_config(filepath):
     with open(filepath, "r") as f:
         data = yaml.safe_load(f)
@@ -22,6 +24,23 @@ config = load_config("Configurations/1-machine_1-lift.yaml")
 event_log = []
 unfulfilled_requests = []
 
+# Variables to calculate the throughput of the system. Divide the total time and count to get the average time per item
+# Easily calculate items per hour using: 3600 / average_time
+# Splitting shared time (= lift movement) between items that were handled as a batch from the same tray is acceptable
+# Since we're working with averages, the values can be added to each run to get a global average (if needed)
+env = sim.Environment(trace=False)  # Create the simulation environment
+
+# for average pick time
+env.total_picking_time = 0.0
+env.picking_count = 0
+
+# for average item time
+env.request_start = 0.0    # item_stop - item_start = total time to handle an item or a batch of items
+env.request_stop = 0.0
+env.batch_counter = 0  # to remember amount of items in a batch
+env.total_handling_time = 0.0
+env.item_count = 0
+
 
 ''' ====================== Classes ====================== '''
 class Operator(sim.Component):
@@ -30,10 +49,32 @@ class Operator(sim.Component):
         self.pick_time = [10, 12, 14, 11]
 
     def process(self):
+        # There are different preprocess strategies
+        # 1: Orders stay the way they came in, items in an order are switched to put them in an optimal order
+        # 2: Same as 1, but orders are sorted to put orders using the same tray together    -- ToDo
+        if config.PRE_PROCESSING_STRATEGY == 2:
+            # preprocess the requests list so that orders using the same items follow each other.
+            # And since there are multiple items on a tray, all items on that tray can follow on each other as well.
+
+            None    # Placeholder
+
         # Process the requests. Each request is a list of items
         for request in requests:
             print("\n\n============================= NEW ORDER =============================")
-            for item_name in request.item_names:
+            # initialize global variables
+            env.request_start = env.now()
+            env.batch_counter = 0
+            # If future items can already be taken from a retrieved tray, it can be taken directly instead of sending
+            # the tray back, just to call the same tray again.
+            # processed_indices is used to not process the already processed items again when continuing in the for loop
+            processed_indices = set()
+
+            for i in range(len(request.item_names)):
+                if i in processed_indices:
+                    continue  # already handled this index
+
+                item_name = request.item_names[i]
+
                 print(f"-------- {item_name.upper()} -------")
                 # Retreive request information
                 print(f"Processing the request: {item_name}\n")
@@ -60,21 +101,66 @@ class Operator(sim.Component):
                 print(f"The tray with the item is in front of the operator at time {env.now():.2f}")
 
                 # Handle the item - Picking time
-                yield self.hold(self.pick_time[0])
+                pick_time = self.pick_time[0]   # placeholder; change with value from model
+                yield self.hold(pick_time)
+                print(f"Operator picked '{item_name}' from tray {item_tray.ID}")
                 print(f"The operator finished picking the item at time {env.now():.2f}")
+                # The item is now gone from the tray
+                warehouse.remove_item(item_name=item_name, tray_id=item_tray.ID)
+
+                # Update the global parameters to calculate average time
+                env.total_picking_time += pick_time
+                env.picking_count += 1
+                env.batch_counter += 1
+
+                # if there are other items in the request already in the tray, pick them first,
+                # instead of calling the same tray again.
+                # item_counts is a list with each item name and how often it occurs in the current tray
+                item_counts = Counter(item.name for item in item_tray.items)
+
+                # scan through remaining items in the request
+                for j in range(i+1, len(request.item_names)):
+                    # Skip already processed items
+                    if j in processed_indices:
+                        continue
+
+                    future_name = request.item_names[j]
+
+                    # If it's available in the tray, pick it
+                    if item_counts.get(future_name, 0) > 0:     # (..., 0) with 0 as default value (ok for counting)
+                        future_pick_time = self.pick_time[0]
+                        yield self.hold(future_pick_time)
+                        warehouse.remove_item(item_name=future_name, tray_id=item_tray.ID)
+                        item_counts[future_name] -= 1   # Decrease availability
+                        processed_indices.add(j)        # Don't pick it again
+                        print(f"Finished picking '{future_name}' from tray {item_tray.ID} in advance at time {env.now():.2f}")
+
+                        # Update the global parameters to calculate average time
+                        env.total_picking_time += future_pick_time
+                        env.picking_count += 1
+                        env.batch_counter += 1
 
                 # Press a button to return the tray. Elevator is activated again
                 print(f"The operator pressed the elevator button at time {env.now():.2f}")
-                print(f"The lift is now returning the item")
+                print(f"The elevator will now return the tray to the warehouse")
                 elevator.switchTask()
                 elevator.activate()
                 # wait until the elevator is back
                 elevator_done.reset()
                 yield self.wait(elevator_done)
 
-                # The operator can handle the next request (the elevator might still be active returning)
+                # The operator can handle the next request
                 elevator.switchTask()  # switches back to retrieveTray
 
+                # Global throughput logic
+                # Calculate how long each item took to process
+                # When items were handled in a batch, split the shared time
+                env.request_stop = env.now()
+                elapsed_time = env.request_stop - env.request_start
+
+                # update the item time variables
+                env.total_handling_time += elapsed_time
+                env.item_count += env.batch_counter
 
 
 class Elevator(sim.Component):
@@ -143,11 +229,11 @@ class Elevator(sim.Component):
         # Nieuwe Code Visualisatie
         yield from self.move_to_level(config.OPERATOR_LEVEL)
 
-        print(f"Elevator arrived at level {config.OPERATOR_LEVEL} at time {env.now():.2f}\n")
+        print(f"Elevator arrived at level {config.OPERATOR_LEVEL} at time {env.now():.2f}")
 
         # Present the tray to the operator
         yield self.hold(self.present_time)
-        print(f"The tray is ready for the operator at time {env.now():.2f}")
+        print(f"The tray is ready for the operator at time {env.now():.2f}\n")
 
         # The operator will handle the item and press a button to call the elevator to return the tray
         # The button is calling the function switchTask and restarts the process
@@ -217,8 +303,7 @@ class Warehouse:
         # Create the trays. Each level has 2 trays. So height*2 trays
         self.trays = [Tray(i) for i in range(height * 2)]
 
-    def addItem(self, item, tray_id):
-
+    def add_item(self, item, tray_id):
         # Ensure tray_id is valid
         if 0 <= tray_id < self.height * 2:  # Ensure tray_id is valid
             # Save the tray_id in the item for easy retrieval
@@ -226,14 +311,17 @@ class Warehouse:
             # Add the item
             self.trays[tray_id].add_item(item)
             print(f"Added '{item}' to Tray {tray_id}.")
+            print(f"New tray: {self.trays[tray_id].items}")
         else:
             print(f"Invalid Tray ID {tray_id}! Must be between 0 and {self.height - 1}.")
 
-    def remove_item(self, item, tray_id):
+    def remove_item(self, item_name, tray_id):
+        # Remove an item from a certain tray
+
         if 0 <= tray_id < self.height:  # Ensure tray_id is valid
-            removed_item = self.trays[tray_id].remove_item(item)
-            if removed_item:
-                print(f"Removed '{item}' from Tray {tray_id}.")
+            removed_item = self.trays[tray_id].remove_item(item_name)
+            # if removed_item is not None:
+            #     print(f"Removed '{item_name}' from Tray {tray_id}.")
             return removed_item
         else:
             print(f"Invalid Tray ID {tray_id}! Must be between 0 and {self.height - 1}.")
@@ -244,8 +332,7 @@ class Warehouse:
             for current_item in tray.items:  # Loop through items in each tray
                 if current_item.name == item_name:  # Check if the name matches
                     return tray  # Return the tray that contains the item
-        print(f"Item not present in the warehouse.")
-        return None  # Return None if the item is not found
+        raise Exception("Item not present in the warehouse.")
 
 class Tray:
     def __init__(self, ID):
@@ -261,11 +348,12 @@ class Tray:
     def add_item(self, item):
         self.items.append(item)
 
-    def remove_item(self, item):
-        if item in self.items:
-            self.items.remove(item)
-        else:
-            print(f"Item '{item}' not found in Tray {self.ID}!")
+    def remove_item(self, item_name):
+        for item in self.items:
+            if item.name == item_name:
+                self.items.remove(item)
+                return item
+        raise Exception(f"Item '{item_name}' not found in Tray {self.ID}!")
 
 class Item:
     def __init__(self, name):
@@ -274,6 +362,8 @@ class Item:
 
     def __str__(self):
         return f"Item(name={self.name})"
+
+    __repr__ = __str__  # Make repr use str
 
 class Request:
     def __init__(self, item_names):
@@ -390,7 +480,7 @@ def calculate_travel_time(start, end):
 
 ''' ====================== MAIN ====================== '''
 # Create the simulation environment
-env = sim.Environment(trace=False)
+# env = sim.Environment(trace=False)    # Moved to top of the script to declare global variables
 
 # Create a state to help with synchronization
 elevator_done = sim.State('elevator_done')
@@ -399,28 +489,16 @@ elevator_done = sim.State('elevator_done')
 warehouse = Warehouse(config.WAREHOUSE_HEIGHT)
 
 # Add random items to the Warehouse (stock)
-warehouse.addItem(Item(name="Schroevendraaier"), tray_id=3)
-warehouse.addItem(Item(name="Plakband"), tray_id=3)
-warehouse.addItem(Item(name="Schoen"), tray_id=2)
-warehouse.addItem(Item(name="test"), tray_id=5)
-warehouse.addItem(Item(name="Schoen"), tray_id=2)
+warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
+warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
+warehouse.add_item(Item(name="Plakband"), tray_id=3)
+warehouse.add_item(Item(name="Schoen"), tray_id=2)
+warehouse.add_item(Item(name="test"), tray_id=5)
+warehouse.add_item(Item(name="Schoen"), tray_id=2)
 # Make requests
 requests = []
 requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
 requests.append(Request(item_names=["Schoen"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
-requests.append(Request(item_names=["test"]))
 requests.append(Request(item_names=["test"]))
 
 
@@ -472,10 +550,20 @@ for level in range(config.WAREHOUSE_HEIGHT):
         text_anchor="center",
         fontsize=14
     )
-env.run(30)
+
+try:
+    env.run(150)
+except SimulationStopped:
+    pass  # Quietly ignore the exception
 
 # for event in event_log:
 #     print(event)
 
+print("\n\n============ END ============\n\n")
 
+# Show the average pick time
+print(f"Average pick time: {env.total_picking_time / env.picking_count}")
+Average_item_time = env.total_handling_time / env.item_count
+print(f"Average item time: {Average_item_time}")
+print(f"Item throughput: {3600 / Average_item_time:.1f} items per hour")
 

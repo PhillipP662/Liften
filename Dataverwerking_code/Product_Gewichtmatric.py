@@ -38,7 +38,7 @@ def load_item_dimensions(
     df = df[needed].drop_duplicates(subset='Item code')
 
     item_dict = {
-        row['Item code']: (float(row['BRANDBOX_L']), float(row['BRANDBOX_W']))
+        str(int(row['Item code'])): (float(row['BRANDBOX_L']), float(row['BRANDBOX_W']))
         for _, row in df.iterrows()
     }
     return item_dict
