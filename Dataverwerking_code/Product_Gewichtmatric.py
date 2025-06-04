@@ -87,6 +87,16 @@ def load_saved_item_dimensions(
 
 # Voorbeeld gebruik:
 # from item_utils import load_item_dimensions, save_item_dimensions, load_saved_item_dimensions
-dims = load_item_dimensions('ExcelData/ProductInfo.xlsx')
+dims = load_item_dimensions('Dataverwerking_data_Input/ProductInfo.xlsx')
 save_item_dimensions(dims, 'item_dims.json')
 loaded = load_saved_item_dimensions('item_dims.json')
+
+def main():
+    dims = load_item_dimensions('Dataverwerking_data_Input/ProductInfo.xlsx')
+    save_item_dimensions(dims, 'Dataverwerking_data_output/item_dims.json')
+    loaded = load_saved_item_dimensions('Dataverwerking_data_output/item_dims.json')
+    print(f"✅ {len(loaded)} items geladen uit JSON.")
+
+
+if __name__ == "__main__":
+    main()

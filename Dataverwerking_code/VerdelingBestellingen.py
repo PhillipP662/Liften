@@ -133,10 +133,7 @@ def augment_simulation(
     return augmented
 
 
-
-# -------------------------
-# Voorbeeld van gebruik
-if __name__ == '__main__':
+def main():
     bestandspaden = [
         'Dataverwerking_data_Input/1_VerdelingItem01_03.xlsx',
         'Dataverwerking_data_Input/2_VerdelingItem04_06.xlsx',
@@ -145,8 +142,6 @@ if __name__ == '__main__':
         'Dataverwerking_data_Input/5_VerdelingItem13_15.xlsx',
         'Dataverwerking_data_Input/6_VerdelingItem16_19.xlsx',
     ]
-
-
 
     # 1) data inladen
     daily_rates, global_freq, file_freqs = load_excel_data(bestandspaden)
@@ -175,7 +170,7 @@ if __name__ == '__main__':
     # 5) Simuleer
     freq_dist = global_freq if choice == 'global' else file_freqs[choice]
     sim = simulate_period(start_date, days, daily_rates, freq_dist, dist_name=choice)
-    topk_df = get_daily_topk(sim,days)
+    topk_df = get_daily_topk(sim, days)
     print("\n=== Dagelijkse top-5 na simulatie ===")
     print(topk_df.head(days))
 
@@ -200,15 +195,21 @@ if __name__ == '__main__':
             value = float(input("Percentage extra items (bv. 0.2 voor 20%): "))
 
         aug_sim = augment_simulation(sim, code_lists, weight_lists, mode, value, src_choice)
-        aug_topk_df = get_daily_topk(aug_sim,days)
+        aug_topk_df = get_daily_topk(aug_sim, days)
         print("\n=== Dagelijkse top-5 na augmentatie ===")
         print(aug_topk_df.head(days))
     else:
         print("Geen augmentatie toegepast.")
 
     # 7) Opslaan
-    save_simulation(sim, 'sim_output.csv')
+    save_simulation(sim, 'Dataverwerking_data_output/sim_output.csv')
     if aug_answer.lower().startswith('j'):
-        save_simulation(aug_sim, 'augmented_output.csv')
+        save_simulation(aug_sim, 'Dataverwerking_data_output/augmented_output.csv')
 
     print("\nSimulatie voltooid. Resultaten opgeslagen.")
+
+
+# -------------------------
+# Voorbeeld van gebruik
+if __name__ == '__main__':
+  main()
