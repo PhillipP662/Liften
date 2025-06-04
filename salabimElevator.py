@@ -1,17 +1,26 @@
 import math
-
 import salabim as sim
+import yaml
+from types import SimpleNamespace
 
 # Ensure fully yieldless mode (default is True, but let's be explicit)
 sim.yieldless(False)
 
-# Adjustable parameters
+# Load YAML file
+def load_config(filepath):
+    with open(filepath, "r") as f:
+        data = yaml.safe_load(f)
+    return SimpleNamespace(**data)
+
+# Adjustable parameters. Make a new YAML file if you want different configurations
+#config = load_config("config.yaml")
 OPERATOR_LEVEL = 0  # At which level the operator is working
 AMOUNT_OF_ELEVATORS = 1  # DON'T CHANGE YET! Not yet implemented for 1+ elevators
 
 # Adjustable parameters Visualisatie
 WAREHOUSE_HEIGHT = 6  # Aantal verdiepingen
 SCREEN_CENTER_Y = 500  # Midden van het scherm (kan worden aangepast)
+LEVEL_HEIGHT = 80  # Afstand tussen verdiepingen
 TRAY_WIDTH = 150
 TRAY_HEIGHT = 40
 LEVEL_HEIGHT = 40  # Afstand tussen verdiepingen
@@ -273,7 +282,6 @@ class Warehouse:
         print(f"Item not present in the warehouse.")
         return None  # Return None if the item is not found
 
-
 class Tray:
     def __init__(self, ID):
         self.ID = ID
@@ -294,7 +302,6 @@ class Tray:
         else:
             print(f"Item '{item}' not found in Tray {self.ID}!")
 
-
 class Item:
     def __init__(self, name):
         self.name = name
@@ -303,11 +310,9 @@ class Item:
     def __str__(self):
         return f"Item(name={self.name})"
 
-
 class Request:
     def __init__(self, item_names):
         self.item_names = item_names  # The items that needs to be retrieved
-
 
 class EventElevator:
     def __init__(self, item: str, start_locatie: int, start_tijd: int, eind_locatie: int, eind_tijd: int):
@@ -320,7 +325,6 @@ class EventElevator:
     def __repr__(self):
         return (f"EventElevator(item={self.item}, start_locatie={self.start_locatie}, "
                 f"start_tijd={self.start_tijd}, eind_locatie={self.eind_locatie}, eind_tijd={self.eind_tijd})")
-
 
 ### Hulpfuncties
 def nth_root(x, base):
@@ -417,6 +421,7 @@ def calculate_travel_time(start, end):
 
     # The total time it took to travel s_tot
     return t_j + t_a + t_v
+
 
 
 """ Main """
