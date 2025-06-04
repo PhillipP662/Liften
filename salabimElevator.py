@@ -56,7 +56,7 @@ class Operator(sim.Component):
 
                 # wait until the elevator is back
                 elevator_done.reset()  # Reset the sim.State "elevator_done".
-                self.wait(elevator_done)  # Wait until elevator_done.set is called (in elevator process)
+                yield self.wait(elevator_done)  # Wait until elevator_done.set is called (in elevator process)
                 print(f"The tray with the item is in front of the operator at time {env.now():.2f}")
 
                 # Handle the item - Picking time
@@ -70,7 +70,7 @@ class Operator(sim.Component):
                 elevator.activate()
                 # wait until the elevator is back
                 elevator_done.reset()
-                self.wait(elevator_done)
+                yield self.wait(elevator_done)
 
                 # The operator can handle the next request (the elevator might still be active returning)
                 elevator.switchTask()  # switches back to retrieveTray
@@ -101,7 +101,7 @@ class Elevator(sim.Component):
 
         #############################
         #Code Visualisatie
-        self.y_position = BASE_Y + self.current_level * LEVEL_HEIGHT
+        self.y_position = config.BASE_Y + self.current_level * config.LEVEL_HEIGHT
         self.pause_at_level_time = 2.0  # Tijd om even te pauzeren bij aankomst
 
         #############################
@@ -130,7 +130,7 @@ class Elevator(sim.Component):
         print("\nElevator travel event:")
         print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {env.now():.2f}")
         yield from self.move_to_level(self.target_level)
-        print(f"Elevator arrived at level {self.target_level} at time {env.now()} and is ready to retrieve the tray\n")
+        print(f"Elevator arrived at level {self.target_level} at time {env.now():.2f} and is ready to retrieve the tray\n")
 
         # Retrieve the tray
         yield self.hold(self.retrieve_time)
@@ -138,12 +138,12 @@ class Elevator(sim.Component):
 
         # Go to the operator
         print("\nElevator travel event:")
-        print(f"Elevator going from level {self.current_level} to level {OPERATOR_LEVEL} at time {env.now():.2f}")
+        print(f"Elevator going from level {self.current_level} to level {config.OPERATOR_LEVEL} at time {env.now():.2f}")
 
         # Nieuwe Code Visualisatie
-        yield from self.move_to_level(OPERATOR_LEVEL)
+        yield from self.move_to_level(config.OPERATOR_LEVEL)
 
-        print(f"Elevator arrived at level {OPERATOR_LEVEL} at time {env.now():.2f}\n")
+        print(f"Elevator arrived at level {config.OPERATOR_LEVEL} at time {env.now():.2f}\n")
 
         # Present the tray to the operator
         yield self.hold(self.present_time)
@@ -193,8 +193,8 @@ class Elevator(sim.Component):
     def move_to_level(self, target_level):
         steps = 100
         start_level = self.current_level
-        start_y = BASE_Y + start_level * LEVEL_HEIGHT
-        end_y = BASE_Y + target_level * LEVEL_HEIGHT
+        start_y = config.BASE_Y + start_level * config.LEVEL_HEIGHT
+        end_y = config.BASE_Y + target_level * config.LEVEL_HEIGHT
         total_time = calculate_travel_time(start_level, target_level)
         time_per_step = total_time / steps
 
@@ -436,12 +436,12 @@ env.animate(True)
 
 
 # Visualiseer de trays
-for level in range(WAREHOUSE_HEIGHT):
-    tray_y = BASE_Y + level * LEVEL_HEIGHT
+for level in range(config.WAREHOUSE_HEIGHT):
+    tray_y = config.BASE_Y + level * config.LEVEL_HEIGHT
 
     sim.AnimateRectangle(
-        (-TRAY_WIDTH // 2, -TRAY_HEIGHT // 2, TRAY_WIDTH // 2, TRAY_HEIGHT // 2),
-        x=TRAY_X_LEFT,
+        (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
+        x=config.TRAY_X_LEFT,
         y=tray_y,
         fillcolor='gray',
         linecolor='black',  # ➜ zwarte rand
@@ -452,8 +452,8 @@ for level in range(WAREHOUSE_HEIGHT):
     )
 
     sim.AnimateRectangle(
-        (-TRAY_WIDTH // 2, -TRAY_HEIGHT // 2, TRAY_WIDTH // 2, TRAY_HEIGHT // 2),
-        x=TRAY_X_RIGHT,
+        (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
+        x=config.TRAY_X_RIGHT,
         y=tray_y,
         fillcolor='gray',
         linecolor='black',  # ➜ zwarte rand
@@ -463,8 +463,8 @@ for level in range(WAREHOUSE_HEIGHT):
         fontsize=14  # ➜ grotere tekst
     )
     sim.AnimateRectangle(
-        (-TRAY_WIDTH // 2, -TRAY_HEIGHT // 2, TRAY_WIDTH // 2, TRAY_HEIGHT // 2),
-        x=LIFT_X_POSITION,
+        (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
+        x=config.LIFT_X_POSITION,
         y=lambda: elevator.y_position,     # ➜ volgt real-time de positie van de lift
         fillcolor='blue',
         linecolor='black',
@@ -474,8 +474,8 @@ for level in range(WAREHOUSE_HEIGHT):
     )
 env.run(30)
 
-for event in event_log:
-    print(event)
+# for event in event_log:
+#     print(event)
 
 
 
