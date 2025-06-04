@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 ''' =============== Global parameters and variables =============== '''
 # Ensure fully yieldless mode (default is True, but let's be explicit)
-sim.yieldless(True)
+sim.yieldless(False)
 
 # Load configuration file as YAML file
 def load_config(filepath):
@@ -60,7 +60,7 @@ class Operator(sim.Component):
                 print(f"The tray with the item is in front of the operator at time {env.now():.2f}")
 
                 # Handle the item - Picking time
-                self.hold(self.pick_time[0])
+                yield self.hold(self.pick_time[0])
                 print(f"The operator finished picking the item at time {env.now():.2f}")
 
                 # Press a button to return the tray. Elevator is activated again
@@ -74,6 +74,8 @@ class Operator(sim.Component):
 
                 # The operator can handle the next request (the elevator might still be active returning)
                 elevator.switchTask()  # switches back to retrieveTray
+
+
 
 class Elevator(sim.Component):
     def setup(self):
@@ -97,6 +99,14 @@ class Elevator(sim.Component):
         self.passivate()
         self.item = None
 
+        #############################
+        #Code Visualisatie
+        self.y_position = BASE_Y + self.current_level * LEVEL_HEIGHT
+        self.pause_at_level_time = 2.0  # Tijd om even te pauzeren bij aankomst
+
+        #############################
+
+
     def setTarget(self, target_tray, item_name):
         self.target_tray_id = target_tray.ID
         self.target_level = target_tray.ID // 2
@@ -113,35 +123,35 @@ class Elevator(sim.Component):
 
     def retrieveTray(self):
         # Go to the target level, get or release the item(s)
+        # Go to the target level
         start_loc = self.current_level
         start_time = env.now()
-        travel_time = calculate_travel_time(self.current_level, self.target_level)  # based on VLM specifications
+
         print("\nElevator travel event:")
         print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {env.now():.2f}")
-        self.hold(travel_time)
-        self.current_level = self.target_level
-        print(f"Elevator arrived at level {self.target_level} at time {env.now():.2f} and is ready to retrieve the tray\n")
+        yield from self.move_to_level(self.target_level)
+        print(f"Elevator arrived at level {self.target_level} at time {env.now()} and is ready to retrieve the tray\n")
 
         # Retrieve the tray
-        self.hold(self.retrieve_time)
-        print(f"Tray is loaded on the elevator at time {env.now():.2f}")
+        yield self.hold(self.retrieve_time)
+        print(f"Tray is loaded on elevator at time {env.now():.2f}")
 
         # Go to the operator
-        travel_time = calculate_travel_time(config.OPERATOR_LEVEL, self.current_level)
         print("\nElevator travel event:")
-        print(f"Elevator going from level {self.current_level} to level {config.OPERATOR_LEVEL} at time {env.now():.2f}")
-        self.hold(travel_time)
-        self.current_level = config.OPERATOR_LEVEL
-        print(f"Elevator arrived at level {config.OPERATOR_LEVEL} at time {env.now():.2f}\n")
+        print(f"Elevator going from level {self.current_level} to level {OPERATOR_LEVEL} at time {env.now():.2f}")
+
+        # Nieuwe Code Visualisatie
+        yield from self.move_to_level(OPERATOR_LEVEL)
+
+        print(f"Elevator arrived at level {OPERATOR_LEVEL} at time {env.now():.2f}\n")
 
         # Present the tray to the operator
-        self.hold(self.present_time)
-        print(f"The tray is ready for the operator at time {env.now():.2f}\n")
+        yield self.hold(self.present_time)
+        print(f"The tray is ready for the operator at time {env.now():.2f}")
 
         # The operator will handle the item and press a button to call the elevator to return the tray
         # The button is calling the function switchTask and restarts the process
 
-        event_log.append(EventElevator(self.item, start_loc, start_time, self.target_level, travel_time))
 
     def returnTray(self):
         # The target tray variable should still be correct (it isn't changed in the meantime)
@@ -149,32 +159,55 @@ class Elevator(sim.Component):
         start_loc = self.current_level
 
         # Put the tray back on the elevator
-        self.hold(self.retrieve_time)
+        yield self.hold(self.retrieve_time)
         print(f"\nTray is loaded on elevator at time {env.now():.2f}")
 
         # Go to the target level
-        travel_time = calculate_travel_time(self.target_level, self.current_level)
         print("\nElevator travel event:")
         print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {env.now():.2f}")
-        self.hold(travel_time)
-        self.current_level = self.target_level
+
+        # Nieuwe Code Visualisatie
+        yield from self.move_to_level(self.target_level)
+
         print(f"Elevator arrived at level {self.target_level} at time {env.now():.2f} and is ready to return the tray\n")
 
         # Return the tray into the warehouse
-        self.hold(self.return_time)
+        yield self.hold(self.return_time)
         print(f"Tray is returned to the warehouse at time {env.now():.2f}")
 
         # The lift can stay at its current location since there is only 1 elevator
-        event_log.append(EventElevator(self.item, start_loc, start_time, self.current_level, env.now()))
+
 
     def process(self):
         if (self.task == "retrieveTray"):
-            self.retrieveTray()
+            yield from self.retrieveTray()
         else:
-            self.returnTray()
+            yield from self.returnTray()
 
         # Let the operator know the elevator is finished
         elevator_done.set()
+
+    #############################
+    #Visualisatie Code
+    #Tray smooth laten bewegen
+    def move_to_level(self, target_level):
+        steps = 100
+        start_level = self.current_level
+        start_y = BASE_Y + start_level * LEVEL_HEIGHT
+        end_y = BASE_Y + target_level * LEVEL_HEIGHT
+        total_time = calculate_travel_time(start_level, target_level)
+        time_per_step = total_time / steps
+
+        for i in range(1, steps + 1):
+            frac = i / steps
+            self.y_position = start_y + frac * (end_y - start_y)
+            yield self.hold(time_per_step)
+
+        self.y_position = end_y  # zorg dat eindpositie exact klopt
+        yield self.hold(self.pause_at_level_time)  # korte pauze zichtbaar
+        self.current_level = target_level
+
+    #############################
 
 class Warehouse:
     def __init__(self, height):
@@ -369,91 +402,80 @@ warehouse = Warehouse(config.WAREHOUSE_HEIGHT)
 warehouse.addItem(Item(name="Schroevendraaier"), tray_id=3)
 warehouse.addItem(Item(name="Plakband"), tray_id=3)
 warehouse.addItem(Item(name="Schoen"), tray_id=2)
+warehouse.addItem(Item(name="test"), tray_id=5)
+warehouse.addItem(Item(name="Schoen"), tray_id=2)
 # Make requests
 requests = []
 requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
 requests.append(Request(item_names=["Schoen"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+requests.append(Request(item_names=["test"]))
+
 
 # Create an Operator and give it the necessary objects
 # The operator is the only Component that executes its process method from the start
 operator = Operator()
 elevator = Elevator()
 
-# Start de simulatie
-env.run(100)
+########################################################################################
+#Start Visualisatie code
+env.animate(True)
+
+
+
+# Visualiseer de trays
+for level in range(WAREHOUSE_HEIGHT):
+    tray_y = BASE_Y + level * LEVEL_HEIGHT
+
+    sim.AnimateRectangle(
+        (-TRAY_WIDTH // 2, -TRAY_HEIGHT // 2, TRAY_WIDTH // 2, TRAY_HEIGHT // 2),
+        x=TRAY_X_LEFT,
+        y=tray_y,
+        fillcolor='gray',
+        linecolor='black',  # ➜ zwarte rand
+        linewidth=1,  # ➜ dunne lijn
+        text=f"Level {level}",
+        text_anchor="center",
+        fontsize=14  # ➜ grotere tekst
+    )
+
+    sim.AnimateRectangle(
+        (-TRAY_WIDTH // 2, -TRAY_HEIGHT // 2, TRAY_WIDTH // 2, TRAY_HEIGHT // 2),
+        x=TRAY_X_RIGHT,
+        y=tray_y,
+        fillcolor='gray',
+        linecolor='black',  # ➜ zwarte rand
+        linewidth=1,  # ➜ dunne lijn
+        text=f"Level {level}",
+        text_anchor="center",
+        fontsize=14  # ➜ grotere tekst
+    )
+    sim.AnimateRectangle(
+        (-TRAY_WIDTH // 2, -TRAY_HEIGHT // 2, TRAY_WIDTH // 2, TRAY_HEIGHT // 2),
+        x=LIFT_X_POSITION,
+        y=lambda: elevator.y_position,     # ➜ volgt real-time de positie van de lift
+        fillcolor='blue',
+        linecolor='black',
+        text=lambda: elevator.item if elevator.item else "Lift",
+        text_anchor="center",
+        fontsize=14
+    )
+env.run(30)
 
 for event in event_log:
     print(event)
 
 
-''' ====================== Visualisatie ====================== '''
-VISUALIZE = False
 
-if VISUALIZE:
-    BASE_Y = config.SCREEN_CENTER_Y - (config.WAREHOUSE_HEIGHT // 2) * config.LEVEL_HEIGHT  # Onderste level = 0
-
-    sim.yieldless(False)  # Zorg ervoor dat we 'yield' kunnen gebruiken
-    # event_log = [
-    #     EventElevator("Schroevendraaier", start_locatie=1, start_tijd=2, eind_locatie=4, eind_tijd=5),
-    #     EventElevator("Schoen", start_locatie=4, start_tijd=6, eind_locatie=1, eind_tijd=8),
-    #     EventElevator("Boek", start_locatie=1, start_tijd=9, eind_locatie=5, eind_tijd=12),
-    #     EventElevator("Laptop", start_locatie=2, start_tijd=13, eind_locatie=2, eind_tijd=16),
-    #     EventElevator("Waterfles", start_locatie=2, start_tijd=17, eind_locatie=3, eind_tijd=19),
-    #     EventElevator("Notitieboek", start_locatie=3, start_tijd=20, eind_locatie=2, eind_tijd=23),
-    #     EventElevator("Hoofdtelefoon", start_locatie=2, start_tijd=24, eind_locatie=5, eind_tijd=27),
-    # ]
-    env = sim.Environment(trace=False)
-    env.animate(True)
-
-    # Visualisatie - Magazijn
-    for level in range(config.WAREHOUSE_HEIGHT):
-        tray_y = BASE_Y + level * config.LEVEL_HEIGHT
-        sim.AnimateRectangle(
-            (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
-            x=config.TRAY_X_LEFT,
-            y=tray_y,
-            fillcolor='gray',
-            text=f"Level {level}")
-
-        sim.AnimateRectangle(
-            (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
-            x=config.TRAY_X_RIGHT,
-            y=tray_y,
-            fillcolor='gray',
-            text=f"Level {level}")
-
-
-        class Lift(sim.Component):
-            def setup(self, event_log):
-                self.event_log = event_log
-                self.y_position = BASE_Y  # Startpositie correct instellen
-                self.current_item = "Lift"
-
-            def process(self):
-                for event in self.event_log:
-                    print(f"🚀 Lift beweegt voor event: {event}")
-
-                    self.current_item = event.item
-
-                    # Bereken de doelpositie op basis van verdieping
-                    target_y = BASE_Y + event.eind_locatie * config.LEVEL_HEIGHT
-
-                    # Simuleer de liftbeweging
-                    self.y_position = target_y
-                    yield self.hold((event.eind_tijd - event.start_tijd) * config.speed)  # Wacht de duur van de verplaatsing
-
-                    self.current_item = "Lift"
-
-
-        # Maak de lift en geef de event_log mee
-        lift = Lift(event_log=event_log)
-
-        # **Koppel animatie aan de liftpositie**
-        lift_rectangle = sim.AnimateRectangle(
-            (-config.ELEVATOR_WIDTH // 2, -config.ELEVATOR_HEIGHT // 2, config.ELEVATOR_WIDTH // 2, config.ELEVATOR_HEIGHT // 2),
-            x=config.LIFT_X_POSITION,
-            y=lambda: lift.y_position,  # Dynamische y-waarde correct gekoppeld aan de trays
-            fillcolor='blue', text=lambda: lift.current_item
-        )
-    # Start de simulatie
-    env.run(30)
