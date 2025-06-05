@@ -23,7 +23,7 @@ def load_config(filepath):
 # Adjustable parameters. Make a new YAML file if you want different configurations
 # All parameters are now in yaml files
 # Call with "config.<PARAMETER_NAME>"
-config = load_config("Configurations/1-machine_1-lift.yaml")
+config = load_config("Configurations/1-machine_2-lifts.yaml")
 
 event_log = []
 unfulfilled_requests = []
@@ -35,6 +35,17 @@ class Operator(sim.Component):
         self.pick_time = [10, 12, 14, 11]
 
     def process(self):
+        if config.AMOUNT_OF_ELEVATORS == 1:
+            yield from self.one_elevator()
+        elif config.AMOUNT_OF_ELEVATORS == 2:
+            yield from self.two_elevators()
+        else:
+            raise Exception("\n\nThere is no algorithm for more than 2 elevators\n\n")
+
+        #return
+        yield
+
+    def one_elevator(self):
         # There are different preprocess strategies
         # 1: Orders stay the way they came in, items in an order are switched to put them in an optimal order
         # 2: Same as 1, but orders are sorted to put orders using the same tray together    -- ToDo
@@ -42,7 +53,7 @@ class Operator(sim.Component):
             # preprocess the requests list so that orders using the same items follow each other.
             # And since there are multiple items on a tray, all items on that tray can follow on each other as well.
 
-            None    # Placeholder
+            None  # Placeholder
 
         # Process the requests. Each request is a list of items
         for request in requests:
@@ -87,7 +98,7 @@ class Operator(sim.Component):
                 print(f"The tray with the item is in front of the operator at time {env.now():.2f}")
 
                 # Handle the item - Picking time
-                pick_time = self.pick_time[0]   # placeholder; change with value from model
+                pick_time = self.pick_time[0]  # placeholder; change with value from model
                 yield self.hold(pick_time)
                 print(f"Operator picked '{item_name}' from tray {item_tray.ID}")
                 print(f"The operator finished picking the item at time {env.now():.2f}")
@@ -105,7 +116,7 @@ class Operator(sim.Component):
                 item_counts = Counter(item.name for item in item_tray.items)
 
                 # scan through remaining items in the request
-                for j in range(i+1, len(request.item_names)):
+                for j in range(i + 1, len(request.item_names)):
                     # Skip already processed items
                     if j in processed_indices:
                         continue
@@ -113,13 +124,14 @@ class Operator(sim.Component):
                     future_name = request.item_names[j]
 
                     # If it's available in the tray, pick it
-                    if item_counts.get(future_name, 0) > 0:     # (..., 0) with 0 as default value (ok for counting)
+                    if item_counts.get(future_name, 0) > 0:  # (..., 0) with 0 as default value (ok for counting)
                         future_pick_time = self.pick_time[0]
                         yield self.hold(future_pick_time)
                         warehouse.remove_item(item_name=future_name, tray_id=item_tray.ID)
-                        item_counts[future_name] -= 1   # Decrease availability
-                        processed_indices.add(j)        # Don't pick it again
-                        print(f"Finished picking '{future_name}' from tray {item_tray.ID} in advance at time {env.now():.2f}")
+                        item_counts[future_name] -= 1  # Decrease availability
+                        processed_indices.add(j)  # Don't pick it again
+                        print(
+                            f"Finished picking '{future_name}' from tray {item_tray.ID} in advance at time {env.now():.2f}")
 
                         # Update the global parameters to calculate average time
                         env.total_picking_time += future_pick_time
@@ -147,6 +159,186 @@ class Operator(sim.Component):
                 # update the item time variables
                 env.total_handling_time += elapsed_time
                 env.item_count += env.batch_counter
+    def two_elevators(self):
+        # Using 2 elevators, so the operator should look ahead at new trays to occupy the second elevator.
+        # The elevators work as a pair, they don't work independently because of space restrictions,
+        # meaning they can't go through each other
+        # Let's call the bottom and top elevator lift0 and lift1 respectively
+        # Different situations:
+        # - Order with multiple items (and trays): use both elevators for the 1 order
+        # - Order has 1 item: each elevator handles an order (lift0 takes the lowest tray and lift1 the highest)
+
+        # Process the requests/orders
+        # flatten the requests list to get a list of items (of all orders), but keep request index as metadata,
+        # since the next order can't start if the current is not finished (or about to finish)
+
+        # Preprocessing =================================================================================
+        flattened_items = []
+
+        for request_index, request in enumerate(requests):
+            for item_index, item_name in enumerate(request.item_names):
+                is_last = (item_index == len(request.item_names) - 1)
+                flattened_items.append({
+                    "item_name": item_name,
+                    "request_index": request_index,
+                    "is_last_in_request": is_last,  # if it is the last item of a request
+                    "is_processed": False           # change to True when processed, so it doesn't happen twice
+                })
+
+        i = 0
+        blacklist = []
+        while i < len(flattened_items):
+            item = flattened_items[i]
+
+            if item.get("processed"):   # if already processed, skip
+                i += 1
+                continue
+
+            current_request_index = item["request_index"]
+
+            # how many items of the current request index are still left
+            amount_of_items_left = 0
+            last_item_index = 0
+            last_next_item_index = 0
+            j = i
+            while j < len(flattened_items):
+                if flattened_items[j]["is_processed"]:
+                    j += 1
+                    continue
+                else:
+                    if flattened_items[j]["request_index"] == current_request_index:
+                        # starts at the current_request_index
+                        amount_of_items_left += 1
+                    else:
+                        # the list is sorted. If the index changes, the end of the current request is reached
+                        last_item_index = j - 1
+                        break
+
+            # the tray the item is on in the warehouse and which will be called (not yet now)
+            item_tray = warehouse.locate_item(item["item_name"])
+            if (item_tray == None):
+                # Volledige request mag niet gedaan worden. Alle orders zouden op stock moeten zijn
+                raise Exception("\n\nAlle orders zouden op stock moeten zijn\n\n")
+            # find out what items are on the tray
+            item_counts = Counter(item.name for item in item_tray.items)
+
+            # The list of items that will be processed by the operator as a batch on the same tray
+            items_on_tray = []  # list of indexes in flattened_items
+            will_request_finish, items_on_tray = self.will_request_finish(flattened_items, i, item_counts, items_on_tray)
+
+            if will_request_finish and config.AMOUNT_OF_ELEVATORS == 2:
+                # The next elevator can already take the second tray
+                None   # placeholder
+
+
+
+
+
+
+            # the tray the item is on in the warehouse and which will be called (not yet now)
+            item_tray = warehouse.locate_item(item["item_name"])
+            if (item_tray == None):
+                # Volledige request mag niet gedaan worden. Alle orders zouden op stock moeten zijn
+                raise Exception("\n\nAlle orders zouden op stock moeten zijn\n\n")
+
+            # find out what items are on the tray
+            item_counts = Counter(item.name for item in item_tray.items)
+
+            # you can't process the next request if the current one isn't finished during this batch
+            # will all items of the request be processed using the tray?
+            items_on_tray = []  # these will be handled when the tray arrives at the operator
+            item_counts_copy = item_counts.copy()
+            j = i
+            while j < len(flattened_items):
+                current_item_name = flattened_items[j]["item_name"]
+
+                if flattened_items[j]["is_processed"]:
+                    continue
+                else:
+                    if flattened_items[j]["request_index"] == current_request_index:
+                        if item_counts_copy[current_item_name] > 0:
+                            # the item is on the tray. process it and remove from the tray
+                            items_on_tray.append(j)
+                            item_counts_copy[current_item_name] -= 1
+
+            is_request_finished = False
+            if amount_of_items_left == len(items_on_tray):
+                is_request_finished = True
+            if amount_of_items_left < len(items_on_tray):
+                raise Exception("\n\nThere can't be more items on the tray than there are left.\n\n")
+
+            # If the request is not finished, the next tray needs to be retrieved, and the next request can't be used
+            if is_request_finished:
+                # we can already start processing the next request to see if there are items already on the tray
+                next_request_index = last_item_index+1
+
+
+
+
+            i += 1
+
+    def will_request_finish(self, flattened_items, i, item_counts, items_on_tray):
+        while i < len(flattened_items):
+            item = flattened_items[i]
+
+            if item.get("processed"):  # if already processed, skip
+                i += 1
+                continue
+
+            current_request_index = item["request_index"]
+
+            # how many items of the current request index are still left
+            amount_of_items_left = 0
+            last_item_index = 0
+            j = i
+            while j < len(flattened_items):
+                if flattened_items[j]["is_processed"]:
+                    continue
+                else:
+                    if flattened_items[j]["request_index"] == current_request_index:
+                        # starts at the current_request_index
+                        amount_of_items_left += 1
+                    else:
+                        # the list is sorted. If the index changes, the end of the current request is reached
+                        last_item_index = j - 1
+                        break
+
+            # you can't process the next request if the current one isn't finished during this batch
+            # will all items of the request be processed using the tray?
+            items_on_tray = []  # these will be handled when the tray arrives at the operator
+            j = i
+            while j < len(flattened_items):
+                current_item_name = flattened_items[j]["item_name"]
+
+                if flattened_items[j]["is_processed"]:
+                    continue
+                else:
+                    if flattened_items[j]["request_index"] == current_request_index:
+                        if item_counts[current_item_name] > 0:
+                            # the item is on the tray. process it and remove from the tray
+                            items_on_tray.append(j)
+                            item_counts[current_item_name] -= 1
+
+            is_request_finished = False
+            if amount_of_items_left == len(items_on_tray):
+                is_request_finished = True
+            if amount_of_items_left < len(items_on_tray):
+                raise Exception("\n\nThere can't be more items on the tray than there are left.\n\n")
+
+            # If the request is not finished, the next tray needs to be retrieved, and the next request can't be used
+            if is_request_finished:
+                # we can already start processing the next request to see if there are items already on the tray
+                next_request_index = last_item_index + 1
+                will_request_finish, next_items_on_tray = self.will_request_finish(flattened_items, i, item_counts)
+                items_on_tray.append(next_items_on_tray)  # update the list
+
+            else:
+                # we can't continue to the next request since the current one isn't finished
+                return False, items_on_tray
+
+
+
+            i += 1
 
 
 class Elevator(sim.Component):
@@ -477,8 +669,8 @@ def calculate_travel_time(start, end):
 
 
 ''' =========================== Create the orders, inventory and fill the trays =========================== '''
-order_list, inventory_list, grouped_orders = get_inventory_and_orders()
-tray_items = get_tray_filling_from_data(inventory_list)
+# order_list, inventory_list, grouped_orders = get_inventory_and_orders()
+# tray_items = get_tray_filling_from_data(inventory_list)
 
 # DEBUG
 # total_items = sum(len(item_list) for item_list in inventory_list.values())
@@ -544,6 +736,8 @@ requests = create_requests_from_grouped_orders(grouped_orders)
 # The operator is the only Component that executes its process method from the start
 operator = Operator(env=env)
 elevator = Elevator(env=env)
+if config.AMOUNT_OF_ELEVATORS == 2:
+    elevator_2 = Elevator(env=env)
 
 ########################################################################################
 #Start Visualisatie code

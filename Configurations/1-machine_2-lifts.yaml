@@ -1,0 +1,26 @@
+name: 1-machine_1-lift
+
+# Adjustable parameters
+OPERATOR_LEVEL: 0  # At which level the operator is working
+AMOUNT_OF_ELEVATORS: 1
+
+# Adjustable parameters Visualisatie
+WAREHOUSE_HEIGHT: 10  # Aantal verdiepingen
+SCREEN_CENTER_Y: 500  # Midden van het scherm (kan worden aangepast)
+LEVEL_HEIGHT: 80  # Afstand tussen verdiepingen   Of 40?
+TRAY_WIDTH: 150
+TRAY_HEIGHT: 40
+ELEVATOR_WIDTH: 60
+ELEVATOR_HEIGHT: 80
+ELEVATOR_RETRIEVE_TIME: 4.8
+ELEVATOR_RETURN_TIME: 4.8
+LIFT_X_POSITION: 500
+TRAY_X_LEFT: 350
+TRAY_X_RIGHT: 650
+TWO_TRAY_ROWS: True  # Kies of er één of twee rijen trays zijn
+speed: 1
+# BASE_Y: SCREEN_CENTER_Y - (WAREHOUSE_HEIGHT // 2) * LEVEL_HEIGHT  ----- Zelf berekenen!!!
+BASE_Y: 260
+
+# Overige parameters
+PRE_PROCESSING_STRATEGY: 1
