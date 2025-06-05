@@ -5,9 +5,9 @@ OPERATOR_LEVEL: 0  # At which level the operator is working
 AMOUNT_OF_ELEVATORS: 1  # DON'T CHANGE YET! Not yet implemented for 1+ elevators
 
 # Adjustable parameters Visualisatie
-WAREHOUSE_HEIGHT: 10  # Aantal verdiepingen
+WAREHOUSE_HEIGHT: 20  # Aantal verdiepingen
 SCREEN_CENTER_Y: 500  # Midden van het scherm (kan worden aangepast)
-LEVEL_HEIGHT: 80  # Afstand tussen verdiepingen   Of 40?
+LEVEL_HEIGHT: 40  # Afstand tussen verdiepingen   Of 40? Tussenruimte tussen de trays
 TRAY_WIDTH: 150
 TRAY_HEIGHT: 40
 ELEVATOR_WIDTH: 60

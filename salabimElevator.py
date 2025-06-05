@@ -533,6 +533,11 @@ elevator = Elevator(env=env)
 #Start Visualisatie code
 env.animate(True)
 
+available_height = env.height() - 2*config.TRAY_HEIGHT  # 20 boven en 20 onder als marge
+config.LEVEL_HEIGHT = available_height / config.WAREHOUSE_HEIGHT
+config.BASE_Y = config.TRAY_HEIGHT + 20
+config.TRAY_HEIGHT = config.LEVEL_HEIGHT * 0.8
+
 # Visualiseer de trays
 for level in range(config.WAREHOUSE_HEIGHT):
     tray_y = config.BASE_Y + level * config.LEVEL_HEIGHT
