@@ -5,7 +5,7 @@ OPERATOR_LEVEL: 0  # At which level the operator is working
 AMOUNT_OF_ELEVATORS: 1
 
 # Adjustable parameters Visualisatie
-WAREHOUSE_HEIGHT: 10  # Aantal verdiepingen
+WAREHOUSE_HEIGHT: 100  # Aantal verdiepingen
 SCREEN_CENTER_Y: 500  # Midden van het scherm (kan worden aangepast)
 LEVEL_HEIGHT: 80  # Afstand tussen verdiepingen   Of 40?
 TRAY_WIDTH: 150

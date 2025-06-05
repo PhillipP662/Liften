@@ -51,13 +51,14 @@ def load_ordered_items(filename):
 
 def get_ordered_item_dimensions(ordered_item_codes, all_dimensions):
     """
-    Retourneert een dict met itemcode -> (l, w), en een waarschuwing voor ontbrekende codes.
+    Retourneert een lijst van (l, w, code) tuples, één keer per itemcode in de lijst.
     """
-    items = {}
+    items = []
     missing = []
     for code in ordered_item_codes:
         if code in all_dimensions:
-            items[code] = tuple(all_dimensions[code])  # bv. '1107': (0.19, 0.19)
+            l, w = all_dimensions[code]
+            items.append((l, w, code))  # include code to preserve identity
         else:
             missing.append(code)
     if missing:
@@ -67,7 +68,7 @@ def get_ordered_item_dimensions(ordered_item_codes, all_dimensions):
 
 
 #Eerste Algo is een greedy gesorteert
-def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_rotation=True):
+def fill_trays_Greedy(items, tray_length, tray_width, max_trays, allow_rotation=False):
     """
     item_dim_dict: dict van item_id (str of int) -> (l, w)
     """
@@ -75,10 +76,10 @@ def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_r
     padding = 0.02
 
     # Items toevoegen met echte item_id als rid
-    for item_id, (l, w) in item_dim_dict.items():
+    for i, (l, w, code) in enumerate(items):
         padded_l = l + padding
         padded_w = w + padding
-        packer.add_rect(padded_l, padded_w, rid=item_id)
+        packer.add_rect(padded_l, padded_w, rid=(code, i))  # i makes each item unique
 
     # Trays toevoegen
     for _ in range(max_trays):
@@ -88,11 +89,12 @@ def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_r
     packer.pack()
 
     # Geplaatste items per tray verzamelen
-    tray_items = {i: [] for i in range(1, max_trays + 1)}
+    tray_items = {i: [] for i in range(0, max_trays)}
     for rect in packer.rect_list():
-        tray_index, x, y, l, w, item_id = rect
-        tray_items[tray_index + 1].append({  # +1 zodat trays starten bij 1
-            "item_id": item_id,
+        tray_index, x, y, l, w, (code, _) = rect
+        tray_items[tray_index].append({
+            "item_id": code,
+            "item_code": code,
             "x": x,
             "y": y,
             "l": l - padding,
@@ -100,9 +102,9 @@ def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_r
         })
 
     # Niet-geplaatste items bepalen
+    all_ids = set((code, i) for i, (_, _, code) in enumerate(items))
     placed_ids = set(r[5] for r in packer.rect_list())
-    all_ids = set(item_dim_dict.keys())
-    not_placed = list(all_ids - placed_ids)
+    not_placed = [code for (code, i) in all_ids - placed_ids]
 
     return tray_items, not_placed
 
@@ -350,7 +352,7 @@ def print_tray_results(tray_items, not_placed, items):
     print("📦 Tray-inhoud:")
     for tray_index, itemlist in tray_items.items():
         if itemlist:
-            print(f"\nTray {tray_index + 1}:")
+            print(f"\nTray {tray_index}:")
             for item in itemlist:
                 print(f"  - Item {item['item_id']} op ({item['x']:.2f}, {item['y']:.2f}) [{item['l']} x {item['w']}]")
 
@@ -444,7 +446,7 @@ def get_tray_filling():
     unused_per_tray, total_unused = calculate_unused_space(tray_items, tray_length, tray_width)
     print("\n📏 Ongebruikte ruimte per tray:")
     for tray_index, unused in unused_per_tray.items():
-        print(f"- Tray {tray_index + 1}: {unused:.4f} m² ongebruikt")
+        print(f"- Tray {tray_index}: {unused:.4f} m² ongebruikt")
 
     print(f"\n📊 Totale ongebruikte ruimte: {total_unused:.4f} m²")
     print("----------------------------------------------------------------- ")
@@ -457,16 +459,29 @@ def get_tray_filling():
 
     return tray_items
 
-def get_tray_filling_from_data(augmented_data):
+
+def get_tray_filling_from_data(augmented_data, tray_length, tray_width, max_trays):
     loaded = load_saved_item_dimensions('Dataverwerking_code/Dataverwerking_data_output/item_dims.json')
     ordered_codes = [str(code) for codes in augmented_data.values() for code in codes]
     items = get_ordered_item_dimensions(ordered_codes, loaded)
 
-    tray_length = 1.0
-    tray_width = 1.0
-    max_trays = 100
-
     tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
+
+    print_tray_results(tray_items, not_placed, items)
+    unused_per_tray, total_unused = calculate_unused_space(tray_items, tray_length, tray_width)
+    print("\n📏 Ongebruikte ruimte per tray:")
+    for tray_index, unused in unused_per_tray.items():
+        print(f"- Tray {tray_index}: {unused:.4f} m² ongebruikt")
+
+    print(f"\n📊 Totale ongebruikte ruimte: {total_unused:.4f} m²")
+    print("----------------------------------------------------------------- ")
+
+    VALIDATE = True
+    if VALIDATE:
+        print("Validating if trays are filled correctly...")
+        if not validate_trays(tray_items, tray_length=tray_length, tray_width=tray_width):
+            raise Exception("Trays were not filled properly...")
+
     return tray_items
 
 def main():

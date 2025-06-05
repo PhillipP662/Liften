@@ -1,10 +1,13 @@
+import math
+
 import pandas as pd
 from pathlib import Path
 import json
 
 def load_item_dimensions(
     excel_path: str,
-    sheet_name: str = None
+    sheet_name: str = None,
+    default_dimensions: tuple[float, float] = (0.1, 0.1)
 ) -> dict[str, tuple[float, float]]:
     """
     Laadt uit een Excel-bestand de afmetingen per Item code.
@@ -12,6 +15,7 @@ def load_item_dimensions(
     Parameters:
     - excel_path: pad naar het Excel-bestand
     - sheet_name: optioneel, naam van de sheet. Als None, wordt de eerste sheet gebruikt.
+    - default_dimensions: tuple met standaardwaarden voor (BRANDBOX_L, BRANDBOX_W)
 
     Returns:
     - dict van item_code -> (BRANDBOX_L, BRANDBOX_W)
@@ -37,10 +41,20 @@ def load_item_dimensions(
             raise KeyError(f"Kolom '{col}' niet gevonden in {excel_path}")
     df = df[needed].drop_duplicates(subset='Item code')
 
-    item_dict = {
-        str(int(row['Item code'])): (float(row['BRANDBOX_L']), float(row['BRANDBOX_W']))
-        for _, row in df.iterrows()
-    }
+    # Bereken gemiddelde van geldige waarden (zonder NaN)
+    valid_lengths = df['BRANDBOX_L'].dropna()
+    valid_widths = df['BRANDBOX_W'].dropna()
+    avg_l = round(valid_lengths.mean(), 2)
+    avg_w = round(valid_widths.mean(), 2)
+
+    # Bouw de dictionary, met default bij ontbrekende waarden
+    item_dict = {}
+    for _, row in df.iterrows():
+        item_code = str(int(row['Item code']))
+        l = float(row['BRANDBOX_L']) if pd.notna(row['BRANDBOX_L']) else avg_l
+        w = float(row['BRANDBOX_W']) if pd.notna(row['BRANDBOX_W']) else avg_w
+        item_dict[item_code] = (round(l, 2), round(w, 2))
+
     return item_dict
 
 

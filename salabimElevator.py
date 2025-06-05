@@ -488,8 +488,8 @@ class Warehouse:
             item.tray_ID = tray_id
             # Add the item
             self.trays[tray_id].add_item(item)
-            print(f"Added '{item}' to Tray {tray_id}.")
-            print(f"New tray: {self.trays[tray_id].items}")
+            # print(f"Added '{item}' to Tray {tray_id}.")
+            # print(f"New tray: {self.trays[tray_id].items}")
         else:
             print(f"Invalid Tray ID {tray_id}! Must be between 0 and {self.height - 1}.")
 
@@ -510,7 +510,7 @@ class Warehouse:
             for current_item in tray.items:  # Loop through items in each tray
                 if current_item.name == item_name:  # Check if the name matches
                     return tray  # Return the tray that contains the item
-        raise Exception("Item not present in the warehouse.")
+        raise Exception(f"Item {item_name} not present in the warehouse.")
 
 class Tray:
     def __init__(self, ID):
@@ -574,14 +574,28 @@ def fill_warehouse_from_tray_items(tray_items, warehouse):
     for tray_id, items in tray_items.items():
         for item_data in items:
             item_id = item_data["item_id"]
+            if str(item_id) == "28607":
+                print("\n\n\n\nHEREEE warehouse\n\n\n\n")
             warehouse.add_item(Item(name=str(item_id)), tray_id=tray_id)
 
 def create_requests_from_grouped_orders(grouped_orders):
     requests = []
+    # for group in grouped_orders:
+    #     item_names = [str(item_id) for item_id in group]  # Zet ints om naar strings
+    #     requests.append(Request(item_names=item_names))
+    # return requests
+
     for group in grouped_orders:
-        item_names = [str(item_id) for item_id in group]  # Zet ints om naar strings
+        item_names = []
+        for item_id in group:
+            item_name = str(item_id)  # Zet int om naar string
+            if str(item_name) == "28607":
+                print("\n\n\n\nHEREEE order\n\n\n\n")
+            item_names.append(item_name)
         requests.append(Request(item_names=item_names))
+
     return requests
+
 def calculate_travel_time(start, end):
     """
     Time to travel a certain distance, according to 4 different trajectory shapes:
@@ -669,8 +683,19 @@ def calculate_travel_time(start, end):
 
 
 ''' =========================== Create the orders, inventory and fill the trays =========================== '''
-# order_list, inventory_list, grouped_orders = get_inventory_and_orders()
-# tray_items = get_tray_filling_from_data(inventory_list)
+order_list, inventory_list, grouped_orders = get_inventory_and_orders()
+tray_items = get_tray_filling_from_data(inventory_list, config.TRAY_WIDTH, config.TRAY_HEIGHT, config.WAREHOUSE_HEIGHT*2)
+
+item_code = "28607"
+
+# Count in order_list
+order_count = sum(str(code) == str(item_code) for codes in order_list.values() for code in codes)
+# Count in inventory_list
+inventory_count = sum(str(code) == str(item_code) for codes in inventory_list.values() for code in codes)
+# Count in grouped_orders
+grouped_count = sum(str(code) == str(item_code) for group in grouped_orders for code in group)
+
+print(f"'28607' count:\n\torder_list: {order_count}, inventory_list: {inventory_count}, grouped_orders: {grouped_count}")
 
 # DEBUG
 # total_items = sum(len(item_list) for item_list in inventory_list.values())
@@ -787,7 +812,7 @@ for level in range(config.WAREHOUSE_HEIGHT):
     )
 
 try:
-    env.run(150)
+    env.run(30000)
 except SimulationStopped:
     pass  # Quietly ignore the exception
 
