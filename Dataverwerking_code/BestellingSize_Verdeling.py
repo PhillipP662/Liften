@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import numpy as np
 from scipy import stats
 from scipy.stats import chisquare, hypergeom
@@ -106,19 +107,40 @@ ll_nb = np.sum(stats.nbinom.logpmf(data - 1, r_nb, p_nb))
 print(f"\nLog-likelihood NB: {ll_nb:.2f}")
 
 # Plot
-plt.figure(figsize=(12, 6))
-plt.hist(data, bins=bins, alpha=0.6, label='Origineel', density=True)
-plt.hist(simulated_nb, bins=bins, alpha=0.4, label='Negatief Binomiaal', density=True)
-plt.hist(simulated_zinb, bins=bins, alpha=0.4, label=f'ZINB (beste pi={pi_opt:.2f})', density=True)
-plt.xlabel("Aantal items per bestelling")
-plt.ylabel("Genormaliseerde frequentie")
-plt.title("Overlay: Originele data vs NB en ZINB simulaties")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+# plt.figure(figsize=(12, 6))
+# plt.hist(data, bins=bins, alpha=0.6, label='Origineel', density=True)
+# plt.hist(simulated_nb, bins=bins, alpha=0.4, label='Negatief Binomiaal', density=True)
+# plt.hist(simulated_zinb, bins=bins, alpha=0.4, label=f'ZINB (beste pi={pi_opt:.2f})', density=True)
+# plt.xlabel("Aantal items per bestelling")
+# plt.ylabel("Genormaliseerde frequentie")
+# plt.title("Overlay: Originele data vs NB en ZINB simulaties")
+# plt.legend()
+# plt.grid(True)
+# plt.tight_layout()
+# plt.show()
 
+# Versie voor FigureCanvasAgg (had fouten met mijn versie) ===================
+fig = plt.figure(figsize=(12, 6))
+canvas = FigureCanvas(fig)
+ax = fig.add_subplot(111)
 
+# Replot using ax instead of plt
+ax.hist(data, bins=bins, alpha=0.6, label='Origineel', density=True)
+ax.hist(simulated_nb, bins=bins, alpha=0.4, label='Negatief Binomiaal', density=True)
+ax.hist(simulated_zinb, bins=bins, alpha=0.4, label=f'ZINB (beste pi={pi_opt:.2f})', density=True)
+ax.set_xlabel("Aantal items per bestelling")
+ax.set_ylabel("Genormaliseerde frequentie")
+ax.set_title("Overlay: Originele data vs NB en ZINB simulaties")
+ax.legend()
+ax.grid(True)
+
+ax.set_xlim(0, 60)  # Adjust as needed
+canvas.draw()
+image = canvas.buffer_rgba()  # Or use .tostring_rgb() if needed
+
+fig.savefig("zinb_plot.png", dpi=300)
+print("Plot saved as 'zinb_plot.png'")
+# Versie voor FigureCanvasAgg (had fouten met mijn versie) ===================
 
 print("NB sample:", genereer_nb_waarde(r_nb,p_nb))
 print("ZINB sample:", genereer_zinb_waarde(pi_opt,r_zinb,p_zinb))

@@ -6,6 +6,10 @@ import yaml
 from types import SimpleNamespace
 from salabim import SimulationStopped
 
+# To get the result of other python scripts
+from Dataverwerking_code.for_main.VerdelingBestellingen import get_inventory_and_orders
+from Dataverwerking_code.for_main.Tray_filling import get_tray_filling_from_data
+
 ''' =============== Global parameters and variables =============== '''
 # Ensure fully yieldless mode (default is True, but let's be explicit)
 sim.yieldless(False)
@@ -23,24 +27,6 @@ config = load_config("Configurations/1-machine_1-lift.yaml")
 
 event_log = []
 unfulfilled_requests = []
-
-# Variables to calculate the throughput of the system. Divide the total time and count to get the average time per item
-# Easily calculate items per hour using: 3600 / average_time
-# Splitting shared time (= lift movement) between items that were handled as a batch from the same tray is acceptable
-# Since we're working with averages, the values can be added to each run to get a global average (if needed)
-env = sim.Environment(trace=False)  # Create the simulation environment
-
-# for average pick time
-env.total_picking_time = 0.0
-env.picking_count = 0
-
-# for average item time
-env.request_start = 0.0    # item_stop - item_start = total time to handle an item or a batch of items
-env.request_stop = 0.0
-env.batch_counter = 0  # to remember amount of items in a batch
-env.total_handling_time = 0.0
-env.item_count = 0
-
 
 ''' ====================== Classes ====================== '''
 class Operator(sim.Component):
@@ -478,7 +464,43 @@ def calculate_travel_time(start, end):
     return t_j + t_a + t_v
 
 
+''' =========================== Create the orders, inventory and fill the trays =========================== '''
+order_list, inventory_list = get_inventory_and_orders()
+total_items = sum(len(item_list) for item_list in inventory_list.values())
+tray_items = get_tray_filling_from_data(inventory_list)
+
+# DEBUG
+print(f"Total number of items in inventory_list: {total_items}")
+total_items = sum(len(v) for v in tray_items.values())
+print(f"[INFO] tray_items: {len(tray_items)} trays, {total_items} items placed")
+
+print("\n\nMAIN---")
+print("📦 Tray-inhoud:")
+for tray_index, itemlist in tray_items.items():
+    if itemlist:
+        print(f"\nTray {tray_index + 1}:")
+        for item in itemlist:
+            print(f"  - Item {item['item_id']} op ({item['x']:.2f}, {item['y']:.2f}) [{item['l']} x {item['w']}]")
+
+
 ''' ====================== MAIN ====================== '''
+# Variables to calculate the throughput of the system. Divide the total time and count to get the average time per item
+# Easily calculate items per hour using: 3600 / average_time
+# Splitting shared time (= lift movement) between items that were handled as a batch from the same tray is acceptable
+# Since we're working with averages, the values can be added to each run to get a global average (if needed)
+env = sim.Environment(trace=False)  # Create the simulation environment
+
+# for average pick time
+env.total_picking_time = 0.0
+env.picking_count = 0
+
+# for average item time
+env.request_start = 0.0    # item_stop - item_start = total time to handle an item or a batch of items
+env.request_stop = 0.0
+env.batch_counter = 0  # to remember amount of items in a batch
+env.total_handling_time = 0.0
+env.item_count = 0
+
 # Create the simulation environment
 # env = sim.Environment(trace=False)    # Moved to top of the script to declare global variables
 
@@ -504,14 +526,12 @@ requests.append(Request(item_names=["test"]))
 
 # Create an Operator and give it the necessary objects
 # The operator is the only Component that executes its process method from the start
-operator = Operator()
-elevator = Elevator()
+operator = Operator(env=env)
+elevator = Elevator(env=env)
 
 ########################################################################################
 #Start Visualisatie code
 env.animate(True)
-
-
 
 # Visualiseer de trays
 for level in range(config.WAREHOUSE_HEIGHT):

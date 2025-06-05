@@ -4,3 +4,8 @@ openpyxl
 matplotlib
 scipy
 greenlet
+salabim
+rectpack
+numpy
+fitter
+PyYAML
