@@ -170,7 +170,7 @@ def save_grouped_orders_flat(orders: list[list[str]], filename: str) -> None:
     ]
     pd.DataFrame(records).to_csv(filename, index=False)
 
-def get_inventory_and_orders():
+def get_inventory_and_orders(hours):
     # bestandspaden = [
     #     '../Dataverwerking_data_Input/1_VerdelingItem01_03.xlsx',
     #     '../Dataverwerking_data_Input/2_VerdelingItem04_06.xlsx',
@@ -202,7 +202,7 @@ def get_inventory_and_orders():
 
     # 4) Simulatieduur
     start_date = datetime.fromisoformat("2025-06-01")
-    hours = SIMULATION_HOURS
+    hours = hours
 
     # 5) Simuleer
     freq_dist = global_freq if choice == 'global' else file_freqs[choice]
