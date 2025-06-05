@@ -68,30 +68,25 @@ def get_ordered_item_dimensions(ordered_item_codes, all_dimensions):
 
 #Eerste Algo is een greedy gesorteert
 def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_rotation=True):
-    """
-    item_dim_dict: dict van item_id (str of int) -> (l, w)
-    """
+    from rectpack import newPacker
+
     packer = newPacker(rotation=allow_rotation)
     padding = 0.02
 
-    # Items toevoegen met echte item_id als rid
     for item_id, (l, w) in item_dim_dict.items():
         padded_l = l + padding
         padded_w = w + padding
         packer.add_rect(padded_l, padded_w, rid=item_id)
 
-    # Trays toevoegen
     for _ in range(max_trays):
         packer.add_bin(tray_length, tray_width)
 
-    # Packing uitvoeren
     packer.pack()
 
-    # Geplaatste items per tray verzamelen
     tray_items = {i: [] for i in range(1, max_trays + 1)}
     for rect in packer.rect_list():
         tray_index, x, y, l, w, item_id = rect
-        tray_items[tray_index + 1].append({  # +1 zodat trays starten bij 1
+        tray_items[tray_index + 1].append({
             "item_id": item_id,
             "x": x,
             "y": y,
@@ -99,7 +94,6 @@ def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_r
             "w": w - padding
         })
 
-    # Niet-geplaatste items bepalen
     placed_ids = set(r[5] for r in packer.rect_list())
     all_ids = set(item_dim_dict.keys())
     not_placed = list(all_ids - placed_ids)
@@ -107,21 +101,19 @@ def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_r
     return tray_items, not_placed
 
 #Tweede Algo is een greedy niet gesorteerd.
-def fill_trays_sequential(items, tray_length, tray_width, max_trays):
+def fill_trays_sequential(item_dim_dict, tray_length, tray_width, max_trays):
     """
     Plaatst items sequentieel in trays zonder sortering.
-    Elk item wordt geplaatst op de eerstvolgende plek waar het zonder overlap past.
+    Tray indices starten vanaf 1.
 
     Parameters:
-    - items: lijst van (lengte, breedte)
-    - tray_length, tray_width: afmetingen van de tray
-    - max_trays: maximum aantal trays
+    - item_dim_dict: dict van item_id (str of int) -> (l, w)
 
     Returns:
-    - tray_items: dict van tray_index -> geplaatste items (met x, y)
+    - tray_items: dict van tray_index (1-based) -> geplaatste items (met x, y)
     - not_placed: lijst van niet-geplaatste item-ID's
     """
-    tray_items = {i: [] for i in range(max_trays)}
+    tray_items = {i: [] for i in range(1, max_trays + 1)}
     not_placed = []
 
     def fits(x, y, l, w, placed, tray_l, tray_w):
@@ -136,7 +128,7 @@ def fill_trays_sequential(items, tray_length, tray_width, max_trays):
         return True
 
     def find_position(l, w, placed, tray_l, tray_w):
-        step = 0.01  # resolutie van de scan (kleiner = trager, maar preciezer)
+        step = 0.01
         y = 0.0
         while y + w <= tray_w:
             x = 0.0
@@ -147,17 +139,16 @@ def fill_trays_sequential(items, tray_length, tray_width, max_trays):
             y += step
         return None
 
-    current_tray = 0
-    for idx, (l_orig, w_orig) in enumerate(items):
+    tray_index = 1
+    for item_id, (l_orig, w_orig) in item_dim_dict.items():
         placed = False
-        while current_tray < max_trays:
-            # Probeer zowel (l,w) als (w,l)
+        while tray_index <= max_trays:
             for l, w in [(l_orig, w_orig), (w_orig, l_orig)]:
-                position = find_position(l, w, tray_items[current_tray], tray_length, tray_width)
+                position = find_position(l, w, tray_items[tray_index], tray_length, tray_width)
                 if position:
                     x, y = position
-                    tray_items[current_tray].append({
-                        "item_id": idx,
+                    tray_items[tray_index].append({
+                        "item_id": item_id,
                         "x": x,
                         "y": y,
                         "l": l,
@@ -168,28 +159,27 @@ def fill_trays_sequential(items, tray_length, tray_width, max_trays):
             if placed:
                 break
             else:
-                current_tray += 1
+                tray_index += 1
 
         if not placed:
-            not_placed.append(idx)
+            not_placed.append(item_id)
 
     return tray_items, not_placed
 
-def fill_trays_random_best_fit(items, tray_length, tray_width, max_trays):
+
+def fill_trays_random_best_fit(item_dim_dict, tray_length, tray_width, max_trays):
     """
     Plaatst items in trays met random volgorde van items en trays,
     en kiest per tray de best mogelijke plek (laagste y).
 
-    Parameters:
-    - items: lijst van (l, w)
-    - tray_length, tray_width: afmetingen van de tray
-    - max_trays: maximaal aantal trays
+    Tray indices starten vanaf 1.
+    item_dim_dict: dict van item_id -> (l, w)
 
     Returns:
-    - tray_items: dict van tray_index -> geplaatste items met x/y/l/w
+    - tray_items: dict van tray_index (1-based) -> geplaatste items met x/y/l/w
     - not_placed: lijst van item-ID's die niet geplaatst konden worden
     """
-    tray_items = {i: [] for i in range(max_trays)}
+    tray_items = {i: [] for i in range(1, max_trays + 1)}
     not_placed = []
 
     def fits(x, y, l, w, placed, tray_l, tray_w):
@@ -219,13 +209,13 @@ def fill_trays_random_best_fit(items, tray_length, tray_width, max_trays):
             y += step
         return best
 
-    # Shuffle items
-    indexed_items = list(enumerate(items))
-    random.shuffle(indexed_items)
+    # Shuffle items (dictionary → lijst van tuples)
+    shuffled_items = list(item_dim_dict.items())
+    random.shuffle(shuffled_items)
 
-    for idx, (orig_l, orig_w) in indexed_items:
+    for item_id, (orig_l, orig_w) in shuffled_items:
         placed = False
-        tray_order = list(range(max_trays))
+        tray_order = list(range(1, max_trays + 1))
         random.shuffle(tray_order)
 
         for tray in tray_order:
@@ -234,7 +224,7 @@ def fill_trays_random_best_fit(items, tray_length, tray_width, max_trays):
                 if position:
                     x, y = position
                     tray_items[tray].append({
-                        "item_id": idx,
+                        "item_id": item_id,
                         "x": x,
                         "y": y,
                         "l": l,
@@ -246,14 +236,14 @@ def fill_trays_random_best_fit(items, tray_length, tray_width, max_trays):
                 break
 
         if not placed:
-            not_placed.append(idx)
+            not_placed.append(item_id)
 
     return tray_items, not_placed
 
 
 def fill_trays_by_frequency(ordered_item_codes, all_dimensions, tray_length, tray_width, max_trays):
     """
-    Plaatst items met de hoogste frequentie in de laagste trays (0,1,2,...)
+    Plaatst items met de hoogste frequentie in de laagste trays (1,2,3,...)
 
     Parameters:
     - ordered_item_codes: lijst van item_codes als strings
@@ -262,10 +252,10 @@ def fill_trays_by_frequency(ordered_item_codes, all_dimensions, tray_length, tra
     - max_trays: aantal trays
 
     Returns:
-    - tray_items: dict van tray_index -> geplaatste items
+    - tray_items: dict van tray_index (1-based) -> geplaatste items
     - not_placed: lijst van item_codes die niet geplaatst konden worden
     """
-    tray_items = {i: [] for i in range(max_trays)}
+    tray_items = {i: [] for i in range(1, max_trays + 1)}
     not_placed = []
 
     def fits(x, y, l, w, placed, tray_l, tray_w):
@@ -307,26 +297,22 @@ def fill_trays_by_frequency(ordered_item_codes, all_dimensions, tray_length, tra
     # 3. Sorteer op frequentie (hoog → laag)
     sorted_items = sorted(items_with_dims, key=lambda x: -freq_table[x[0]])
 
-    item_id_counter = 0
-
     for code, (l_orig, w_orig) in sorted_items:
         count = freq_table[code]
-        for _ in range(count):  # plaats meerdere keren per frequentie
+        for _ in range(count):
             placed = False
-            for tray in range(max_trays):
+            for tray_index in range(1, max_trays + 1):
                 for l, w in [(l_orig, w_orig), (w_orig, l_orig)]:
-                    pos = find_best_position(l, w, tray_items[tray], tray_length, tray_width)
+                    pos = find_best_position(l, w, tray_items[tray_index], tray_length, tray_width)
                     if pos:
                         x, y = pos
-                        tray_items[tray].append({
-                            "item_id": item_id_counter,
-                            "item_code": code,
+                        tray_items[tray_index].append({
+                            "item_id": code,
                             "x": x,
                             "y": y,
                             "l": l,
                             "w": w
                         })
-                        item_id_counter += 1
                         placed = True
                         break
                 if placed:
@@ -457,16 +443,22 @@ def get_tray_filling():
 
     return tray_items
 
-def get_tray_filling_from_data(augmented_data):
+def get_tray_filling_from_data(augmented_data, mode,tray_length, tray_width, max_trays ):
     loaded = load_saved_item_dimensions('Dataverwerking_code/Dataverwerking_data_output/item_dims.json')
     ordered_codes = [str(code) for codes in augmented_data.values() for code in codes]
     items = get_ordered_item_dimensions(ordered_codes, loaded)
 
-    tray_length = 1.0
-    tray_width = 1.0
-    max_trays = 100
+    if mode == 1:
+        tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
+    elif mode == 2:
+        tray_items, not_placed = fill_trays_sequential(items, tray_length, tray_width, max_trays)
+    elif mode == 3:
+        tray_items, not_placed = fill_trays_random_best_fit(items, tray_length, tray_width, max_trays)
+    elif mode == 4:
+        tray_items, not_placed = fill_trays_by_frequency(items, tray_length, tray_width, max_trays)
+    else:
+        tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
 
-    tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
     return tray_items
 
 def main():

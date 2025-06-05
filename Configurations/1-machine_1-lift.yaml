@@ -5,7 +5,7 @@ OPERATOR_LEVEL: 0  # At which level the operator is working
 AMOUNT_OF_ELEVATORS: 1  # DON'T CHANGE YET! Not yet implemented for 1+ elevators
 
 # Adjustable parameters Visualisatie
-WAREHOUSE_HEIGHT: 20  # Aantal verdiepingen
+WAREHOUSE_HEIGHT: 10  # Aantal verdiepingen
 SCREEN_CENTER_Y: 500  # Midden van het scherm (kan worden aangepast)
 LEVEL_HEIGHT: 40  # Afstand tussen verdiepingen   Of 40? Tussenruimte tussen de trays
 TRAY_WIDTH: 150
@@ -22,5 +22,16 @@ speed: 1
 # BASE_Y: SCREEN_CENTER_Y - (WAREHOUSE_HEIGHT // 2) * LEVEL_HEIGHT  ----- Zelf berekenen!!!
 BASE_Y: 260
 
+#fill_trays_Greedy = TRAY_FILLING_MODE : 1
+#fill_trays_sequential = TRAY_FILLING_MODE : 2
+#fill_trays_random_best_fit = TRAY_FILLING_MODE : 3
+#fill_trays_by_frequency = TRAY_FILLING_MODE : 4
+TRAY_FILLING_MODE : 1
+
+tray_length : 4
+tray_width : 3.0
+max_trays : 10
+
+hours : 8
 # Overige parameters
 PRE_PROCESSING_STRATEGY: 1

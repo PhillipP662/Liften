@@ -373,8 +373,8 @@ class Elevator(sim.Component):
 
     def setTarget(self, target_tray, item_name):
         self.target_tray_id = target_tray.ID
-        self.target_level = target_tray.ID // 2
-        self.target_tray_number = target_tray.ID % 2  # is '0' or '1'
+        self.target_level = target_tray.level
+        self.target_tray_number = target_tray.trayNumber  # is '0' or '1'
         self.item = item_name
 
     def switchTask(self):
@@ -516,8 +516,8 @@ class Tray:
     def __init__(self, ID):
         self.ID = ID
         # There are 2 trays for each level
-        self.level = ID // 2
-        self.trayNumber = ID % 2
+        self.level = (ID - 1) // 2  # i.p.v. ID // 2
+        self.trayNumber = (ID - 1) % 2
         self.items = []
 
     def __str__(self):
@@ -669,6 +669,10 @@ def calculate_travel_time(start, end):
 
 
 ''' =========================== Create the orders, inventory and fill the trays =========================== '''
+order_list, inventory_list, grouped_orders = get_inventory_and_orders(config.hours)
+
+
+tray_items = get_tray_filling_from_data(inventory_list, config.TRAY_FILLING_MODE, config.tray_length, config.tray_width, config.max_trays)
 # order_list, inventory_list, grouped_orders = get_inventory_and_orders()
 # tray_items = get_tray_filling_from_data(inventory_list)
 
