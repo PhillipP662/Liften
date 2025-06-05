@@ -231,7 +231,7 @@ def get_inventory_and_orders():
     print("\nSimulatie voltooid. Resultaten opgeslagen.")
 
     # 8) Bestelling aanpassen op basis van
-    with open("simulatie_parameters.json", "r") as f:
+    with open("Dataverwerking_code/simulatie_parameters.json", "r") as f:
         parameters = json.load(f)
 
     # Extract de parameters
