@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -144,3 +146,20 @@ print("Plot saved as 'zinb_plot.png'")
 
 print("NB sample:", genereer_nb_waarde(r_nb,p_nb))
 print("ZINB sample:", genereer_zinb_waarde(pi_opt,r_zinb,p_zinb))
+
+parameters = {
+    "negative_binomial": {
+        "r": r_nb,
+        "p": p_nb
+    },
+    "ZINB": {
+        "pi": pi_opt,
+        "r": r_zinb,
+        "p": p_zinb
+    }
+}
+
+with open("simulatie_parameters.json", "w") as f:
+    json.dump(parameters, f, indent=4)
+
+print("Parameters opgeslagen in simulatie_parameters.json")
