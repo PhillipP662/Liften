@@ -153,7 +153,7 @@ class Elevator(sim.Component):
     def setup(self):
         self.current_level = 0
         self.task = "retrieveTray"  # retrieveTray: bring tray to operator | returnTray: return tray to original place
-
+        self.empty = True;
         # different speeds
         # self.travel_speed = 2   # Time to move one floor
         # self.travel_acceleration = 1
@@ -198,7 +198,7 @@ class Elevator(sim.Component):
         # Go to the target level
         start_loc = self.current_level
         start_time = env.now()
-
+        self.empty = True
         print("\nElevator travel event:")
         print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {env.now():.2f}")
         yield from self.move_to_level(self.target_level)
@@ -207,7 +207,7 @@ class Elevator(sim.Component):
         # Retrieve the tray
         yield self.hold(self.retrieve_time)
         print(f"Tray is loaded on elevator at time {env.now():.2f}")
-
+        self.empty = False
         # Go to the operator
         print("\nElevator travel event:")
         print(f"Elevator going from level {self.current_level} to level {config.OPERATOR_LEVEL} at time {env.now():.2f}")
@@ -220,7 +220,7 @@ class Elevator(sim.Component):
         # Present the tray to the operator
         yield self.hold(self.present_time)
         print(f"The tray is ready for the operator at time {env.now():.2f}\n")
-
+        self.empty = True
         # The operator will handle the item and press a button to call the elevator to return the tray
         # The button is calling the function switchTask and restarts the process
 
@@ -229,7 +229,7 @@ class Elevator(sim.Component):
         # The target tray variable should still be correct (it isn't changed in the meantime)
         start_time = env.now()
         start_loc = self.current_level
-
+        self.empty = True;
         # Put the tray back on the elevator
         yield self.hold(self.retrieve_time)
         print(f"\nTray is loaded on elevator at time {env.now():.2f}")
@@ -564,9 +564,9 @@ for level in range(config.WAREHOUSE_HEIGHT):
         (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
         x=config.LIFT_X_POSITION,
         y=lambda: elevator.y_position,     # ➜ volgt real-time de positie van de lift
-        fillcolor='blue',
+        fillcolor= lambda: "blue" if not elevator.empty else 'red',
         linecolor='black',
-        text=lambda: elevator.item if elevator.item else "Lift",
+        text=lambda: elevator.item if not elevator.empty else "Empty",
         text_anchor="center",
         fontsize=14
     )
