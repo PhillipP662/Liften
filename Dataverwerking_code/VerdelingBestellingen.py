@@ -1,9 +1,11 @@
+import json
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import random
 from pathlib import Path
 
+from scipy import stats
 
 
 def save_simulation(sim_data: dict[datetime, list[str]], filename: str) -> None:
@@ -132,6 +134,39 @@ def augment_simulation(
         augmented[date] = picks + extra_picks
     return augmented
 
+def genereer_nb_waarde(r, p):
+    return stats.nbinom.rvs(r, p) +1;
+
+# === Functie: Genereer waarde volgens Zero-Inflated Negatief Binomiaal ===
+def genereer_zinb_waarde(pi,r, p):
+    if np.random.rand() < pi:
+        return 1
+    else:
+        return stats.nbinom.rvs(r, p) +1
+
+def group_all_items_into_orders(sim_output: dict[datetime, list[str]], r: float, p: float) -> list[list[str]]:
+    """
+    Groepeert alle items uit de hele sim onafhankelijk van tijd in bestellingen,
+    met aantallen bepaald door genereer_nb_waarde(r, p).
+    Retourneert: lijst van bestellingen (elke bestelling is een lijst van itemcodes).
+    """
+    all_items = [item for items in sim_output.values() for item in items]
+    i = 0
+    grouped_orders = []
+    while i < len(all_items):
+        n_items = genereer_nb_waarde(r, p)
+        order = all_items[i:i + n_items]
+        grouped_orders.append(order)
+        i += n_items
+    return grouped_orders
+
+def save_grouped_orders_flat(orders: list[list[str]], filename: str) -> None:
+    records = [
+        {"order_id": i+1, "items": ",".join(map(str, order))}
+        for i, order in enumerate(orders)
+    ]
+    pd.DataFrame(records).to_csv(filename, index=False)
+
 
 def main():
     bestandspaden = [
@@ -208,6 +243,23 @@ def main():
 
     print("\nSimulatie voltooid. Resultaten opgeslagen.")
 
+    # 8) Bestelling aanpassen op basis van
+    with open("simulatie_parameters.json", "r") as f:
+        parameters = json.load(f)
+
+    # Extract de parameters
+    r_nb = parameters["negative_binomial"]["r"]
+    p_nb = parameters["negative_binomial"]["p"]
+    pi_opt = parameters["ZINB"]["pi"]
+    r_zinb = parameters["ZINB"]["r"]
+    p_zinb = parameters["ZINB"]["p"]
+
+    print("Parameters geladen:")
+    print("NB → r:", r_nb, "p:", p_nb)
+    print("ZINB → pi:", pi_opt, "r:", r_zinb, "p:", p_zinb)
+
+    grouped_orders = group_all_items_into_orders(sim, r_nb, p_nb)
+    save_grouped_orders_flat(grouped_orders, 'Dataverwerking_data_output/grouped_orders.csv')
 
 # -------------------------
 # Voorbeeld van gebruik
