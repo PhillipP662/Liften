@@ -465,22 +465,22 @@ def calculate_travel_time(start, end):
 
 
 ''' =========================== Create the orders, inventory and fill the trays =========================== '''
-order_list, inventory_list = get_inventory_and_orders()
-total_items = sum(len(item_list) for item_list in inventory_list.values())
+order_list, inventory_list, grouped_orders = get_inventory_and_orders()
 tray_items = get_tray_filling_from_data(inventory_list)
 
 # DEBUG
-print(f"Total number of items in inventory_list: {total_items}")
-total_items = sum(len(v) for v in tray_items.values())
-print(f"[INFO] tray_items: {len(tray_items)} trays, {total_items} items placed")
-
-print("\n\nMAIN---")
-print("📦 Tray-inhoud:")
-for tray_index, itemlist in tray_items.items():
-    if itemlist:
-        print(f"\nTray {tray_index + 1}:")
-        for item in itemlist:
-            print(f"  - Item {item['item_id']} op ({item['x']:.2f}, {item['y']:.2f}) [{item['l']} x {item['w']}]")
+# total_items = sum(len(item_list) for item_list in inventory_list.values())
+# print(f"Total number of items in inventory_list: {total_items}")
+# total_items = sum(len(v) for v in tray_items.values())
+# print(f"[INFO] tray_items: {len(tray_items)} trays, {total_items} items placed")
+#
+# print("\n\nMAIN---")
+# print("📦 Tray-inhoud:")
+# for tray_index, itemlist in tray_items.items():
+#     if itemlist:
+#         print(f"\nTray {tray_index + 1}:")
+#         for item in itemlist:
+#             print(f"  - Item {item['item_id']} op ({item['x']:.2f}, {item['y']:.2f}) [{item['l']} x {item['w']}]")
 
 
 ''' ====================== MAIN ====================== '''
