@@ -378,6 +378,18 @@ def nth_root(x, base):
         raise ValueError("Cannot take even root of a negative number in real numbers.")
     return x ** (1 / base)
 
+def fill_warehouse_from_tray_items(tray_items, warehouse):
+    for tray_id, items in tray_items.items():
+        for item_data in items:
+            item_id = item_data["item_id"]
+            warehouse.add_item(Item(name=str(item_id)), tray_id=tray_id)
+
+def create_requests_from_grouped_orders(grouped_orders):
+    requests = []
+    for group in grouped_orders:
+        item_names = [str(item_id) for item_id in group]  # Zet ints om naar strings
+        requests.append(Request(item_names=item_names))
+    return requests
 def calculate_travel_time(start, end):
     """
     Time to travel a certain distance, according to 4 different trajectory shapes:
@@ -511,17 +523,21 @@ elevator_done = sim.State('elevator_done')
 warehouse = Warehouse(config.WAREHOUSE_HEIGHT)
 
 # Add random items to the Warehouse (stock)
-warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-warehouse.add_item(Item(name="Plakband"), tray_id=3)
-warehouse.add_item(Item(name="Schoen"), tray_id=2)
-warehouse.add_item(Item(name="test"), tray_id=5)
-warehouse.add_item(Item(name="Schoen"), tray_id=2)
+# warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
+# warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
+# warehouse.add_item(Item(name="Plakband"), tray_id=3)
+# warehouse.add_item(Item(name="Schoen"), tray_id=2)
+# warehouse.add_item(Item(name="test"), tray_id=5)
+# warehouse.add_item(Item(name="Schoen"), tray_id=2)
+
+fill_warehouse_from_tray_items(tray_items, warehouse)
+
 # Make requests
-requests = []
-requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
-requests.append(Request(item_names=["Schoen"]))
-requests.append(Request(item_names=["test"]))
+# requests = []
+# requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
+# requests.append(Request(item_names=["Schoen"]))
+# requests.append(Request(item_names=["test"]))
+requests = create_requests_from_grouped_orders(grouped_orders)
 
 
 # Create an Operator and give it the necessary objects

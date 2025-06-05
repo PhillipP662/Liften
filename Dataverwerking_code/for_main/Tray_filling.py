@@ -51,14 +51,13 @@ def load_ordered_items(filename):
 
 def get_ordered_item_dimensions(ordered_item_codes, all_dimensions):
     """
-    Filtert de dimensies van alleen de bestelde items (enkel als ze bestaan in de dimensiematrix).
-    Verwacht dat alle item_codes strings van integers zijn, bv. '13974'
+    Retourneert een dict met itemcode -> (l, w), en een waarschuwing voor ontbrekende codes.
     """
-    items = []
+    items = {}
     missing = []
     for code in ordered_item_codes:
         if code in all_dimensions:
-            items.append(all_dimensions[code])
+            items[code] = tuple(all_dimensions[code])  # bv. '1107': (0.19, 0.19)
         else:
             missing.append(code)
     if missing:
@@ -68,32 +67,18 @@ def get_ordered_item_dimensions(ordered_item_codes, all_dimensions):
 
 
 #Eerste Algo is een greedy gesorteert
-def fill_trays_Greedy(items, tray_length, tray_width, max_trays, allow_rotation=True):
+def fill_trays_Greedy(item_dim_dict, tray_length, tray_width, max_trays, allow_rotation=True):
     """
-    Plaatst items in trays met beperkte capaciteit.
-
-    Parameters:
-    - items: lijst van tuples (lengte, breedte)
-    - tray_length: lengte van een tray
-    - tray_width: breedte van een tray
-    - max_trays: maximaal aantal trays
-    - allow_rotation: of items 90° gedraaid mogen worden
-
-    Returns:
-    - tray_items: dict van tray_index -> lijst van geplaatste items
-    - not_placed: lijst van niet-geplaatste item-ID's
+    item_dim_dict: dict van item_id (str of int) -> (l, w)
     """
     packer = newPacker(rotation=allow_rotation)
-    # Use padding on the right and top of an item to leave some space between items
-    # Padding is removed after finishing the bin packing
-    # padding = 0.02  # Tight packing
-    padding = 0.02  # To grab box
+    padding = 0.02
 
-    # Items toevoegen met ID
-    for idx, (l, w) in enumerate(items):
+    # Items toevoegen met echte item_id als rid
+    for item_id, (l, w) in item_dim_dict.items():
         padded_l = l + padding
         padded_w = w + padding
-        packer.add_rect(padded_l, padded_w, rid=idx)
+        packer.add_rect(padded_l, padded_w, rid=item_id)
 
     # Trays toevoegen
     for _ in range(max_trays):
@@ -103,20 +88,20 @@ def fill_trays_Greedy(items, tray_length, tray_width, max_trays, allow_rotation=
     packer.pack()
 
     # Geplaatste items per tray verzamelen
-    tray_items = {i: [] for i in range(max_trays)}
+    tray_items = {i: [] for i in range(1, max_trays + 1)}
     for rect in packer.rect_list():
-        tray_index, x, y, l, w, rid = rect
-        tray_items[tray_index].append({
-            "item_id": rid,
+        tray_index, x, y, l, w, item_id = rect
+        tray_items[tray_index + 1].append({  # +1 zodat trays starten bij 1
+            "item_id": item_id,
             "x": x,
             "y": y,
-            "l": l - padding,   # get original size, which results in gaps between items (which we want)
+            "l": l - padding,
             "w": w - padding
         })
 
     # Niet-geplaatste items bepalen
     placed_ids = set(r[5] for r in packer.rect_list())
-    all_ids = set(range(len(items)))
+    all_ids = set(item_dim_dict.keys())
     not_placed = list(all_ids - placed_ids)
 
     return tray_items, not_placed
