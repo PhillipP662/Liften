@@ -1,4 +1,4 @@
-name: 1-machine_1-lift
+name: base
 
 # Adjustable parameters
 OPERATOR_LEVEL: 0  # At which level the operator is working
@@ -21,7 +21,7 @@ tray_length : 2.025 # uit brochure. Middelmaat: 2,025 x 1,323 m
 tray_width : 1.323
 max_trays : 100
 
-hours : 8
+hours : 6
 
 # Visualisatie parameters
 LEVEL_HEIGHT: 40  # Afstand tussen verdiepingen   Of 40? Tussenruimte tussen de trays
@@ -35,4 +35,4 @@ BASE_Y: 260
 
 # Overige parameters
 PRE_PROCESSING_STRATEGY: 1
-AMOUNT_OF_RUNS: 10
+AMOUNT_OF_RUNS: 100

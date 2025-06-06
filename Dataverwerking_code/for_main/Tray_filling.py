@@ -8,7 +8,7 @@ import pandas as pd
 # from Dataverwerking_code.Preprocessing import load_simulation
 
 
-USE_PRINT = False
+USE_PRINT = True
 
 def debug_print(*args, **kwargs):
     # use this instead of "print". it automatically checks if USE_PRINT is set or not
@@ -126,13 +126,13 @@ def fill_trays_Greedy(items, tray_length, tray_width, max_trays, allow_rotation=
     return tray_items, not_placed
 
 #Tweede Algo is een greedy niet gesorteerd.
-def fill_trays_sequential(item_dim_dict, tray_length, tray_width, max_trays):
+def fill_trays_sequential(items, tray_length, tray_width, max_trays):
     """
     Plaatst items sequentieel in trays zonder sortering.
     Tray indices starten vanaf 1.
 
     Parameters:
-    - item_dim_dict: dict van item_id (str of int) -> (l, w)
+    - items: lijst van (l, w, item_id) tuples
 
     Returns:
     - tray_items: dict van tray_index (1-based) -> geplaatste items (met x, y)
@@ -165,7 +165,7 @@ def fill_trays_sequential(item_dim_dict, tray_length, tray_width, max_trays):
         return None
 
     tray_index = 1
-    for item_id, (l_orig, w_orig) in item_dim_dict.items():
+    for l_orig, w_orig, item_id in items:
         placed = False
         while tray_index <= max_trays:
             for l, w in [(l_orig, w_orig), (w_orig, l_orig)]:
@@ -192,13 +192,13 @@ def fill_trays_sequential(item_dim_dict, tray_length, tray_width, max_trays):
     return tray_items, not_placed
 
 
-def fill_trays_random_best_fit(item_dim_dict, tray_length, tray_width, max_trays):
+def fill_trays_random_best_fit(items, tray_length, tray_width, max_trays):
     """
     Plaatst items in trays met random volgorde van items en trays,
     en kiest per tray de best mogelijke plek (laagste y).
 
     Tray indices starten vanaf 1.
-    item_dim_dict: dict van item_id -> (l, w)
+    items: lijst van (l, w, item_id) tuples
 
     Returns:
     - tray_items: dict van tray_index (1-based) -> geplaatste items met x/y/l/w
@@ -234,11 +234,11 @@ def fill_trays_random_best_fit(item_dim_dict, tray_length, tray_width, max_trays
             y += step
         return best
 
-    # Shuffle items (dictionary → lijst van tuples)
-    shuffled_items = list(item_dim_dict.items())
+    # Shuffle the list of items
+    shuffled_items = items[:]
     random.shuffle(shuffled_items)
 
-    for item_id, (orig_l, orig_w) in shuffled_items:
+    for orig_l, orig_w, item_id in shuffled_items:
         placed = False
         tray_order = list(range(1, max_trays + 1))
         random.shuffle(tray_order)
@@ -436,29 +436,31 @@ def get_tray_filling():
     # Load all onze Simulated bestellingen en Augemented bestellingen en dimensiematrix
     # sim_loaded = load_simulation("Dataverwerking_code/Dataverwerking_data_output/sim_output.csv")
     # augmented_loaded = load_simulation("Dataverwerking_code/Dataverwerking_data_output/augmented_output.csv")
-    loaded = load_saved_item_dimensions('Dataverwerking_code/Dataverwerking_data_output/item_dims.json')
+    loaded = load_saved_item_dimensions('../Dataverwerking_data_output/item_dims.json')
     tray_length = 1.0
     tray_width = 1.0
     max_trays = 100
 
     # dimensions = load_item_dimensions("item_dims.json")
     ordered_codes = load_ordered_items(
-        "Dataverwerking_code/Dataverwerking_data_output/augmented_output.csv")  # sim_output.csv of augmented_output.csv
+        "../Dataverwerking_data_output/augmented_output.csv")  # sim_output.csv of augmented_output.csv
 
     items = get_ordered_item_dimensions(ordered_codes, loaded)
-    debug_print("Greedy sorted: ")
-    tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
+    # debug_print("Greedy sorted: ")
+    # tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
+    debug_print("First fit: ")
+    tray_items, not_placed = fill_trays_sequential(items, tray_length, tray_width, max_trays)
 
     debug_print("Trays are filled")
 
-    print_tray_results(tray_items, not_placed, items)
-    unused_per_tray, total_unused = calculate_unused_space(tray_items, tray_length, tray_width)
-    debug_print("\n📏 Ongebruikte ruimte per tray:")
-    for tray_index, unused in unused_per_tray.items():
-        debug_print(f"- Tray {tray_index}: {unused:.4f} m² ongebruikt")
-
-    debug_print(f"\n📊 Totale ongebruikte ruimte: {total_unused:.4f} m²")
-    debug_print("----------------------------------------------------------------- ")
+    # print_tray_results(tray_items, not_placed, items)
+    # unused_per_tray, total_unused = calculate_unused_space(tray_items, tray_length, tray_width)
+    # debug_print("\n📏 Ongebruikte ruimte per tray:")
+    # for tray_index, unused in unused_per_tray.items():
+    #     debug_print(f"- Tray {tray_index}: {unused:.4f} m² ongebruikt")
+#
+    # debug_print(f"\n📊 Totale ongebruikte ruimte: {total_unused:.4f} m²")
+    # debug_print("----------------------------------------------------------------- ")
 
     VALIDATE = True
     if VALIDATE:

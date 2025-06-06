@@ -10,6 +10,7 @@ import salabim as sim
 import yaml
 from types import SimpleNamespace
 import random
+from tqdm import tqdm
 
 from numpy.random import default_rng
 from salabim import SimulationStopped
@@ -39,7 +40,7 @@ def load_config(filepath):
 # Adjustable parameters. Make a new YAML file if you want different configurations
 # All parameters are now in yaml files
 # Call with "config.<PARAMETER_NAME>"
-config = load_config("Configurations/1-machine_1-lift.yaml")
+config = load_config("Configurations/base_vul_strategie_3.yaml")
 
 event_log = []
 unfulfilled_requests = []
@@ -517,12 +518,12 @@ class Warehouse:
         # Create the warehouse
         self.height = height  # vertical height of the system = amount of levels
 
-        # Create the trays. Each level has 2 trays. So height*2 trays
-        self.trays = [Tray(i) for i in range(height * 2)]
+        # Create the trays. Each level has TRAYS_PER_ROW trays. So height*TRAYS_PER_ROW trays
+        self.trays = [Tray(i) for i in range(height * config.TRAYS_PER_ROW)]
 
     def add_item(self, item, tray_id):
         # Ensure tray_id is valid
-        if 0 <= tray_id < self.height * 2:  # Ensure tray_id is valid
+        if 0 <= tray_id < self.height * config.TRAYS_PER_ROW:  # Ensure tray_id is valid
             # Save the tray_id in the item for easy retrieval
             item.tray_ID = tray_id
             # Add the item
@@ -555,8 +556,14 @@ class Tray:
     def __init__(self, ID):
         self.ID = ID
         # There are 2 trays for each level
-        self.level = (ID - 1) // 2  # i.p.v. ID // 2
-        self.trayNumber = (ID - 1) % 2
+
+        if config.TRAYS_PER_ROW == 2:
+            self.level = (ID - 1) // 2  # i.p.v. ID // 2
+            self.trayNumber = (ID - 1) % 2
+        else:
+            self.level = ID
+            self.trayNumber = 0
+
         self.items = []
 
     def __str__(self):
@@ -859,8 +866,8 @@ def run_simulation_once(run_index):
     debug_print("\n\n============ END ============\n\n")
 
     # Save the summary information in a json file
-    total_items_verify = sum(len(strings) for strings in order_list.values())
-    print(f"Total items to verify: {total_items_verify}")
+    #total_items_verify = sum(len(strings) for strings in order_list.values())
+    #print(f"Total items to verify: {total_items_verify}")
 
     average_picking_time = env.total_picking_time / env.picking_count
     average_item_time = env.total_handling_time / env.item_count
@@ -868,19 +875,22 @@ def run_simulation_once(run_index):
     write_summary(average_picking_time, average_item_time, item_throughput, env.order_count, env.item_count, run_index)
 
     # Show the average pick time
-    print(f"Average pick time: {average_picking_time}")
-    print(f"Average item time: {average_item_time}")
-    print(f"Item throughput: {3600 / average_item_time:.1f} items per hour")
+    # print(f"Average pick time: {average_picking_time}")
+    # print(f"Average item time: {average_item_time}")
+    # print(f"Item throughput: {3600 / average_item_time:.1f} items per hour")
+    #
+    # print("✅ All files were saved")
 
-    print("✅ All files were saved")
+    return run_index
 
 if __name__ == "__main__":
-    multiprocessing.set_start_method("spawn")  # Required on Windows and recommended for safety
+    multiprocessing.set_start_method("spawn")  # Required on Windows
 
     num_runs = config.AMOUNT_OF_RUNS
 
     with multiprocessing.Pool() as pool:
-        pool.map(run_simulation_once, range(num_runs))
+        for _ in tqdm(pool.imap_unordered(run_simulation_once, range(num_runs)), total=num_runs, desc="Simulation progress"):
+            pass
 
     folder = f"main_result_output/{config.name}"
     merge_and_clean_jsonl_files(folder, "picking_times")

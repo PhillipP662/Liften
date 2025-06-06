@@ -1,0 +1,38 @@
+name: base
+
+# Adjustable parameters
+OPERATOR_LEVEL: 0  # At which level the operator is working
+AMOUNT_OF_ELEVATORS: 1  # DON'T CHANGE YET! Not yet implemented for 1+ elevators
+
+# Adjustable parameters Visualisatie
+WAREHOUSE_HEIGHT: 50  # Aantal verdiepingen
+ELEVATOR_RETRIEVE_TIME: 4.8
+ELEVATOR_RETURN_TIME: 4.8
+TRAYS_PER_ROW: 2  # Kies of er één of twee rijen trays zijn
+
+# Filling modes:
+#fill_trays_Greedy = TRAY_FILLING_MODE : 1
+#fill_trays_sequential = TRAY_FILLING_MODE : 2
+#fill_trays_random_best_fit = TRAY_FILLING_MODE : 3
+#fill_trays_by_frequency = TRAY_FILLING_MODE : 4
+TRAY_FILLING_MODE : 1
+
+tray_length : 2.025 # uit brochure. Middelmaat: 2,025 x 1,323 m
+tray_width : 1.323
+max_trays : 100
+
+hours : 6
+
+# Visualisatie parameters
+LEVEL_HEIGHT: 40  # Afstand tussen verdiepingen   Of 40? Tussenruimte tussen de trays
+TRAY_WIDTH: 150
+TRAY_HEIGHT: 40
+LIFT_X_POSITION: 500
+TRAY_X_LEFT: 350
+TRAY_X_RIGHT: 650
+# BASE_Y: SCREEN_CENTER_Y - (WAREHOUSE_HEIGHT // 2) * LEVEL_HEIGHT  ----- Zelf berekenen!!!
+BASE_Y: 260
+
+# Overige parameters
+PRE_PROCESSING_STRATEGY: 1
+AMOUNT_OF_RUNS: 100

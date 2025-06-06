@@ -28,17 +28,22 @@ def plot_histogram(durations, title, xlabel):
     plt.ylabel("Frequency")
     plt.title(title)
     plt.grid(axis='y')
+
+    # Set axis limits
+    plt.xlim(0, 160)
+    plt.ylim(0, 6000)   # 5800
+
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
-    folder = "1-machine_1-lift"
+    folder = "base_kleine_trays"
 
     # Handling time plot
     handling_durations = load_rounded_half_second_durations(
         os.path.join(folder, "handling_times.jsonl"), "handling_time"
     )
-    plot_histogram(handling_durations, "Handling Time Distribution", "Handling Time (s)")
+    plot_histogram(handling_durations, f"Handling Time Distribution - Small Trays", "Handling Time (s)")
 
     # Picking time plot
     picking_durations = load_rounded_half_second_durations(

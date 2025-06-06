@@ -34,7 +34,7 @@ def load_config(filepath):
 # Adjustable parameters. Make a new YAML file if you want different configurations
 # All parameters are now in yaml files
 # Call with "config.<PARAMETER_NAME>"
-config = load_config("Configurations/1-machine_1-lift.yaml")
+config = load_config("Configurations/test.yaml")
 
 event_log = []
 unfulfilled_requests = []
@@ -874,7 +874,7 @@ for run in range(config.AMOUNT_OF_RUNS):
         )
 
     try:
-        env.run(3000000)
+        env.run()
     except SimulationStopped:
         pass  # Quietly ignore the exception
 

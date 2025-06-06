@@ -1,0 +1,41 @@
+Base:
+📊 Total average handling time: 16.30 sec
+📊 Total average picking time: 3.24 sec
+📊 Average throughput: 220.81 items/hour
+
+base_vul_strategie_2
+📊 Total average handling time: 8.79 sec
+📊 Total average picking time: 3.24 sec
+📊 Average throughput: 409.34 items/hour
+
+
+1 VS 2 trays per rij in de lift:
+1:
+📊 Total average handling time: 17.63 sec
+📊 Total average picking time: 3.24 sec
+📊 Average throughput: 204.16 items/hour
+2:
+📊 Total average handling time: 16.30 sec
+📊 Total average picking time: 3.24 sec
+📊 Average throughput: 220.81 items/hour
+
+1 hour:
+📊 Total average handling time: 12.38 sec
+📊 Total average picking time: 2.96 sec
+📊 Average throughput: 290.78 items/hour
+
+
+
+
+
+
+
+Kleine:
+📊 Total average handling time: 18.70 sec
+📊 Total average picking time: 3.24 sec
+📊 Average throughput: 192.48 items/hour
+
+Gorte:
+📊 Total average handling time: 14.77 sec
+📊 Total average picking time: 3.24 sec
+📊 Average throughput: 243.69 items/hour
