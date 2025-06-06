@@ -11,6 +11,13 @@ from scipy import stats
 SIMULATION_HOURS = 1
 OVERFILL_PERCENTAGE = 0.2
 
+USE_PRINT = False
+
+def debug_print(*args, **kwargs):
+    # use this instead of "print". it automatically checks if USE_PRINT is set or not
+    if USE_PRINT:
+        print(*args, **kwargs)
+
 def save_simulation(sim_data: dict[datetime, list[str]], filename: str) -> None:
     """
     Schrijft simulatieresultaten weg naar CSV.
@@ -61,7 +68,8 @@ def simulate_period(
     hours: int,
     hourly_rates: list[float],
     freq_distribution: pd.Series,
-    dist_name: str = 'global'
+    dist_name: str = 'global',
+    rng=None, np_rng=None
 ) -> dict[datetime, list[str]]:
     """
     Simuleert orders per uur:
@@ -73,17 +81,20 @@ def simulate_period(
 
     Retourneert dict date -> list of itemcodes
     """
+    rng = rng or random.Random()
+    np_rng = np_rng or np.random.default_rng()
+
     codes = freq_distribution.index.tolist()
     weights = (freq_distribution / freq_distribution.sum()).tolist()
 
     sim_output: dict[datetime, list[str]] = {}
-    print(f"Simulatie van {start_date.date()} over {hours} uren met '{dist_name}' distributie")
+    debug_print(f"Simulatie van {start_date.date()} over {hours} uren met '{dist_name}' distributie")
 
     for i in range(hours):
         current_date = start_date + timedelta(hours=i)
-        lam = random.choice(hourly_rates)
-        n_orders = np.random.poisson(lam)
-        picks = random.choices(codes, weights=weights, k=n_orders)
+        lam = rng.choice(hourly_rates)
+        n_orders = np_rng.poisson(lam)
+        picks = rng.choices(codes, weights=weights, k=n_orders)
         sim_output[current_date] = picks
 
     return sim_output
@@ -123,22 +134,26 @@ def augment_simulation(
     weight_lists: dict[str, list[float]],
     mode: str,
     value: float,
-    source_name: str
+    source_name: str,
+        rng=None
 ) -> dict[datetime, list[str]]:
     """
     Augmenteert elke uur met extra picks gebaseerd op bron en mode
     """
+    rng = rng or random.Random()
+
     augmented: dict[datetime, list[str]] = {}
     for date, picks in sim_output.items():
         extra_n = compute_extra_count(picks, mode, value)
         codes = code_lists[source_name]
         weights = weight_lists[source_name]
-        extra_picks = random.choices(codes, weights=weights, k=extra_n)
+        extra_picks = rng.choices(codes, weights=weights, k=extra_n)
         augmented[date] = picks + extra_picks
     return augmented
 
-def genereer_nb_waarde(r, p):
-    return stats.nbinom.rvs(r, p) +1;
+def genereer_nb_waarde(r, p, np_rng=None):
+    np_rng = np_rng or np.random.default_rng()
+    return stats.nbinom.rvs(r, p, random_state=np_rng) + 1
 
 # === Functie: Genereer waarde volgens Zero-Inflated Negatief Binomiaal ===
 def genereer_zinb_waarde(pi,r, p):
@@ -147,7 +162,7 @@ def genereer_zinb_waarde(pi,r, p):
     else:
         return stats.nbinom.rvs(r, p) +1
 
-def group_all_items_into_orders(sim_output: dict[datetime, list[str]], r: float, p: float) -> list[list[str]]:
+def group_all_items_into_orders(sim_output: dict[datetime, list[str]], r: float, p: float, np_rng=None) -> list[list[str]]:
     """
     Groepeert alle items uit de hele sim onafhankelijk van tijd in bestellingen,
     met aantallen bepaald door genereer_nb_waarde(r, p).
@@ -157,7 +172,7 @@ def group_all_items_into_orders(sim_output: dict[datetime, list[str]], r: float,
     i = 0
     grouped_orders = []
     while i < len(all_items):
-        n_items = genereer_nb_waarde(r, p)
+        n_items = genereer_nb_waarde(r, p, np_rng=np_rng)
         order = all_items[i:i + n_items]
         grouped_orders.append(order)
         i += n_items
@@ -170,7 +185,10 @@ def save_grouped_orders_flat(orders: list[list[str]], filename: str) -> None:
     ]
     pd.DataFrame(records).to_csv(filename, index=False)
 
-def get_inventory_and_orders(hours):
+def get_inventory_and_orders(hours, rng=None, np_rng=None):
+    rng = rng or random.Random()
+    np_rng = np_rng or np.random.default_rng()
+
     # bestandspaden = [
     #     '../Dataverwerking_data_Input/1_VerdelingItem01_03.xlsx',
     #     '../Dataverwerking_data_Input/2_VerdelingItem04_06.xlsx',
@@ -206,7 +224,7 @@ def get_inventory_and_orders(hours):
 
     # 5) Simuleer
     freq_dist = global_freq if choice == 'global' else file_freqs[choice]
-    sim = simulate_period(start_date, hours, hourly_rates, freq_dist, dist_name=choice)
+    sim = simulate_period(start_date, hours, hourly_rates, freq_dist, dist_name=choice, rng=rng, np_rng=np_rng)
 
     # 6) Augmentatie vraag
     aug_answer = "ja"
@@ -221,14 +239,14 @@ def get_inventory_and_orders(hours):
         else:
             value = OVERFILL_PERCENTAGE
 
-        aug_sim = augment_simulation(sim, code_lists, weight_lists, mode, value, src_choice)
+        aug_sim = augment_simulation(sim, code_lists, weight_lists, mode, value, src_choice, rng=rng)
 
     # 7) Opslaan
     # save_simulation(sim, 'Dataverwerking_code/Dataverwerking_data_output/sim_output.csv')
     # if aug_answer.lower().startswith('j'):
     #     save_simulation(aug_sim, 'Dataverwerking_code/Dataverwerking_data_output/augmented_output.csv')
 
-    print("\nSimulatie voltooid. Resultaten opgeslagen.")
+    debug_print("\nSimulatie voltooid. Resultaten opgeslagen.")
 
     # 8) Bestelling aanpassen op basis van
     with open("Dataverwerking_code/simulatie_parameters.json", "r") as f:
@@ -241,11 +259,11 @@ def get_inventory_and_orders(hours):
     # r_zinb = parameters["ZINB"]["r"]
     # p_zinb = parameters["ZINB"]["p"]
 
-    # print("Parameters geladen:")
-    # print("NB → r:", r_nb, "p:", p_nb)
-    # print("ZINB → pi:", pi_opt, "r:", r_zinb, "p:", p_zinb)
+    # debug_print("Parameters geladen:")
+    # debug_print("NB → r:", r_nb, "p:", p_nb)
+    # debug_print("ZINB → pi:", pi_opt, "r:", r_zinb, "p:", p_zinb)
 
-    grouped_orders = group_all_items_into_orders(sim, r_nb, p_nb)
+    grouped_orders = group_all_items_into_orders(sim, r_nb, p_nb, np_rng=np_rng)
     # save_grouped_orders_flat(grouped_orders, 'Dataverwerking_data_output/grouped_orders.csv')
 
 

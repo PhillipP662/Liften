@@ -1,5 +1,7 @@
+import glob
 import json
 import math
+import multiprocessing
 import os
 from collections import Counter
 
@@ -7,6 +9,9 @@ import numpy as np
 import salabim as sim
 import yaml
 from types import SimpleNamespace
+import random
+
+from numpy.random import default_rng
 from salabim import SimulationStopped
 
 # To get the result of other python scripts
@@ -41,10 +46,17 @@ unfulfilled_requests = []
 
 ''' ====================== Classes ====================== '''
 class Operator(sim.Component):
-    def setup(self, amount_of_items):
+    def setup(self, amount_of_items, requests, warehouse, elevator, elevator_done, run_index, np_rng=None):
+        np_rng = np_rng or np.random.default_rng()
+
         # picking time
-        self.pick_time = generate_picktime_samples(n=amount_of_items)
+        self.pick_time = generate_picktime_samples(n=amount_of_items, np_rng=np_rng)
         self.pick_time_index = 0
+        self.requests = requests
+        self.warehouse = warehouse
+        self.elevator = elevator
+        self.elevator_done = elevator_done
+        self.run_index = run_index
 
     def process(self):
         if config.AMOUNT_OF_ELEVATORS == 1:
@@ -54,8 +66,7 @@ class Operator(sim.Component):
         else:
             raise Exception("\n\nThere is no algorithm for more than 2 elevators\n\n")
 
-        debug_print(f"\n\nOperator finished at time: {env.now()}")
-        yield
+        debug_print(f"\n\nOperator finished at time: {self.env.now()}")
 
     def one_elevator(self):
         # There are different preprocess strategies
@@ -68,10 +79,10 @@ class Operator(sim.Component):
             None  # Placeholder
 
         # Process the requests. Each request is a list of items
-        for request_index, request in enumerate(requests):
+        for request_index, request in enumerate(self.requests):
             debug_print("\n\n============================= NEW ORDER =============================")
             # initialize global variables
-            env.order_count += 1
+            self.env.order_count += 1
 
             # If future items can already be taken from a retrieved tray, it can be taken directly instead of sending
             # the tray back, just to call the same tray again.
@@ -84,15 +95,15 @@ class Operator(sim.Component):
 
                 item_name = request.item_names[i]
                 # initialize global variables
-                env.request_start = env.now()
-                env.item_picking_times = []
+                self.env.request_start = self.env.now()
+                self.env.item_picking_times = []
 
                 debug_print(f"-------- {item_name.upper()} -------")
                 # Retreive request information
                 debug_print(f"Processing the request: {item_name}\n")
 
                 # Search in which tray the item is
-                item_tray = warehouse.locate_item(item_name)
+                item_tray = self.warehouse.locate_item(item_name)
                 if (item_tray == None):
                     unfulfilled_requests.append(request)
                     # Volledige request mag niet gedaan worden. Op voorhand check of volledige order op stock?
@@ -100,33 +111,33 @@ class Operator(sim.Component):
                 debug_print(f"The item \"{item_name}\" is in tray {item_tray}")
 
                 # Operator starts the elevator
-                debug_print(f"Operator called the elevator to retrieve item at time {env.now():.2f}")
+                debug_print(f"Operator called the elevator to retrieve item at time {self.env.now():.2f}")
 
                 # Let the elevator get the item.
                 debug_print(f"Task: Elevator will get {item_tray} with item: {item_name}")
-                elevator.setTarget(item_tray, item_name)
-                elevator.activate()
+                self.elevator.setTarget(item_tray, item_name)
+                self.elevator.activate()
 
                 # wait until the elevator is back
-                elevator_done.reset()  # Reset the sim.State "elevator_done".
-                yield self.wait(elevator_done)  # Wait until elevator_done.set is called (in elevator process)
-                debug_print(f"The tray with the item is in front of the operator at time {env.now():.2f}")
+                self.elevator_done.reset()  # Reset the sim.State "elevator_done".
+                yield self.wait(self.elevator_done)  # Wait until elevator_done.set is called (in elevator process)
+                debug_print(f"The tray with the item is in front of the operator at time {self.env.now():.2f}")
 
                 # Handle the item - Picking time
                 pick_time = self.pick_time[self.pick_time_index]  # placeholder; change with value from model
                 self.pick_time_index += 1
                 yield self.hold(pick_time)
                 debug_print(f"Operator picked '{item_name}' from tray {item_tray.ID}")
-                debug_print(f"The operator finished picking the item at time {env.now():.2f}")
+                debug_print(f"The operator finished picking the item at time {self.env.now():.2f}")
                 # The item is now gone from the tray
-                warehouse.remove_item(item_name=item_name, tray_id=item_tray.ID)
+                self.warehouse.remove_item(item_name=item_name, tray_id=item_tray.ID)
                 processed_indices.add(i)    # don't take it again
 
                 # Update the global parameters and add to the jsonl files
-                env.total_picking_time += pick_time
-                env.picking_count += 1
-                env.item_picking_times.append([item_name, pick_time])
-                log_time(item_name, request_index, pick_time, log_type="picking")
+                self.env.total_picking_time += pick_time
+                self.env.picking_count += 1
+                self.env.item_picking_times.append([item_name, pick_time])
+                log_time(item_name, request_index, pick_time, "picking", self.run_index)
 
                 # if there are other items in the request already in the tray, pick them first,
                 # instead of calling the same tray again.
@@ -146,44 +157,44 @@ class Operator(sim.Component):
                         future_pick_time = self.pick_time[self.pick_time_index]
                         self.pick_time_index += 1
                         yield self.hold(future_pick_time)
-                        warehouse.remove_item(item_name=future_name, tray_id=item_tray.ID)
+                        self.warehouse.remove_item(item_name=future_name, tray_id=item_tray.ID)
                         item_counts[future_name] -= 1  # Decrease availability
                         processed_indices.add(j)  # Don't pick it again
                         debug_print(
-                            f"Finished picking '{future_name}' from tray {item_tray.ID} in advance at time {env.now():.2f}")
+                            f"Finished picking '{future_name}' from tray {item_tray.ID} in advance at time {self.env.now():.2f}")
 
                         # Update the global parameters and add to the jsonl file
-                        env.total_picking_time += future_pick_time
-                        env.picking_count += 1
-                        env.item_picking_times.append([future_name, future_pick_time])
-                        log_time(future_name, request_index, future_pick_time, log_type="picking")
+                        self.env.total_picking_time += future_pick_time
+                        self.env.picking_count += 1
+                        self.env.item_picking_times.append([future_name, future_pick_time])
+                        log_time(future_name, request_index, future_pick_time, "picking", self.run_index)
 
                 # Press a button to return the tray. Elevator is activated again
-                debug_print(f"The operator pressed the elevator button at time {env.now():.2f}")
+                debug_print(f"The operator pressed the elevator button at time {self.env.now():.2f}")
                 debug_print(f"The elevator will now return the tray to the warehouse")
-                elevator.switchTask()
-                elevator.activate()
+                self.elevator.switchTask()
+                self.elevator.activate()
                 # wait until the elevator is back
-                elevator_done.reset()
-                yield self.wait(elevator_done)
+                self.elevator_done.reset()
+                yield self.wait(self.elevator_done)
 
                 # The operator can handle the next request
-                elevator.switchTask()  # switches back to retrieveTray
+                self.elevator.switchTask()  # switches back to retrieveTray
 
                 # Global throughput logic
-                env.request_stop = env.now()
-                elapsed_time = env.request_stop - env.request_start
+                self.env.request_stop = self.env.now()
+                elapsed_time = self.env.request_stop - self.env.request_start
 
                 # update the item time variables (picking times were already updated)
-                env.total_handling_time += elapsed_time
-                env.item_count += len(env.item_picking_times)
+                self.env.total_handling_time += elapsed_time
+                self.env.item_count += len(self.env.item_picking_times)
 
                 # add times to the jsonl file
                 # Calculate how long each item took to process
                 # When items were handled in a batch, split the shared time
-                split_time = elapsed_time / len(env.item_picking_times)
-                for element in env.item_picking_times:
-                    log_time(item_code=element[0], request_index=request_index, time_value=element[1]+split_time, log_type="handling")
+                split_time = elapsed_time / len(self.env.item_picking_times)
+                for element in self.env.item_picking_times:
+                    log_time(item_code=element[0], request_index=request_index, time_value=element[1]+split_time, log_type="handling", run_index=self.run_index)
 
 
     def two_elevators(self):
@@ -202,7 +213,7 @@ class Operator(sim.Component):
         # Preprocessing =================================================================================
         flattened_items = []
 
-        for request_index, request in enumerate(requests):
+        for request_index, request in enumerate(self.requests):
             for item_index, item_name in enumerate(request.item_names):
                 is_last = (item_index == len(request.item_names) - 1)
                 flattened_items.append({
@@ -242,7 +253,7 @@ class Operator(sim.Component):
                         break
 
             # the tray the item is on in the warehouse and which will be called (not yet now)
-            item_tray = warehouse.locate_item(item["item_name"])
+            item_tray = self.warehouse.locate_item(item["item_name"])
             if (item_tray == None):
                 # Volledige request mag niet gedaan worden. Alle orders zouden op stock moeten zijn
                 raise Exception("\n\nAlle orders zouden op stock moeten zijn\n\n")
@@ -263,7 +274,7 @@ class Operator(sim.Component):
 
 
             # the tray the item is on in the warehouse and which will be called (not yet now)
-            item_tray = warehouse.locate_item(item["item_name"])
+            item_tray = self.warehouse.locate_item(item["item_name"])
             if (item_tray == None):
                 # Volledige request mag niet gedaan worden. Alle orders zouden op stock moeten zijn
                 raise Exception("\n\nAlle orders zouden op stock moeten zijn\n\n")
@@ -369,7 +380,7 @@ class Operator(sim.Component):
 
 
 class Elevator(sim.Component):
-    def setup(self):
+    def setup(self, elevator_done):
         self.current_level = 0
         self.task = "retrieveTray"  # retrieveTray: bring tray to operator | returnTray: return tray to original place
         self.empty = True;
@@ -389,6 +400,7 @@ class Elevator(sim.Component):
         # Only start when operator calls for it
         self.passivate()
         self.item = None
+        self.elevator_done = elevator_done
 
         #############################
         #Code Visualisatie
@@ -416,29 +428,29 @@ class Elevator(sim.Component):
         # Go to the target level, get or release the item(s)
         # Go to the target level
         start_loc = self.current_level
-        start_time = env.now()
+        start_time = self.env.now()
         self.empty = True
         debug_print("\nElevator travel event:")
-        debug_print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {env.now():.2f}")
+        debug_print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {self.env.now():.2f}")
         yield from self.move_to_level(self.target_level)
-        debug_print(f"Elevator arrived at level {self.target_level} at time {env.now():.2f} and is ready to retrieve the tray\n")
+        debug_print(f"Elevator arrived at level {self.target_level} at time {self.env.now():.2f} and is ready to retrieve the tray\n")
 
         # Retrieve the tray
         yield self.hold(self.retrieve_time)
-        debug_print(f"Tray is loaded on elevator at time {env.now():.2f}")
+        debug_print(f"Tray is loaded on elevator at time {self.env.now():.2f}")
         self.empty = False
         # Go to the operator
         debug_print("\nElevator travel event:")
-        debug_print(f"Elevator going from level {self.current_level} to level {config.OPERATOR_LEVEL} at time {env.now():.2f}")
+        debug_print(f"Elevator going from level {self.current_level} to level {config.OPERATOR_LEVEL} at time {self.env.now():.2f}")
 
         # Nieuwe Code Visualisatie
         yield from self.move_to_level(config.OPERATOR_LEVEL)
 
-        debug_print(f"Elevator arrived at level {config.OPERATOR_LEVEL} at time {env.now():.2f}")
+        debug_print(f"Elevator arrived at level {config.OPERATOR_LEVEL} at time {self.env.now():.2f}")
 
         # Present the tray to the operator
         yield self.hold(self.present_time)
-        debug_print(f"The tray is ready for the operator at time {env.now():.2f}\n")
+        debug_print(f"The tray is ready for the operator at time {self.env.now():.2f}\n")
         self.empty = True
         # The operator will handle the item and press a button to call the elevator to return the tray
         # The button is calling the function switchTask and restarts the process
@@ -446,25 +458,25 @@ class Elevator(sim.Component):
 
     def returnTray(self):
         # The target tray variable should still be correct (it isn't changed in the meantime)
-        start_time = env.now()
+        start_time = self.env.now()
         start_loc = self.current_level
         self.empty = True;
         # Put the tray back on the elevator
         yield self.hold(self.retrieve_time)
-        debug_print(f"\nTray is loaded on elevator at time {env.now():.2f}")
+        debug_print(f"\nTray is loaded on elevator at time {self.env.now():.2f}")
 
         # Go to the target level
         debug_print("\nElevator travel event:")
-        debug_print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {env.now():.2f}")
+        debug_print(f"Elevator going from level {self.current_level} to level {self.target_level} at time {self.env.now():.2f}")
 
         # Nieuwe Code Visualisatie
         yield from self.move_to_level(self.target_level)
 
-        debug_print(f"Elevator arrived at level {self.target_level} at time {env.now():.2f} and is ready to return the tray\n")
+        debug_print(f"Elevator arrived at level {self.target_level} at time {self.env.now():.2f} and is ready to return the tray\n")
 
         # Return the tray into the warehouse
         yield self.hold(self.return_time)
-        debug_print(f"Tray is returned to the warehouse at time {env.now():.2f}")
+        debug_print(f"Tray is returned to the warehouse at time {self.env.now():.2f}")
 
         # The lift can stay at its current location since there is only 1 elevator
 
@@ -476,7 +488,7 @@ class Elevator(sim.Component):
             yield from self.returnTray()
 
         # Let the operator know the elevator is finished
-        elevator_done.set()
+        self.elevator_done.set()
 
     #############################
     #Visualisatie Code
@@ -720,7 +732,7 @@ def initialize_result_files():
             pass
 
 
-def log_time(item_code, request_index, time_value, log_type):
+def log_time(item_code, request_index, time_value, log_type, run_index):
     """
     Logs handling or picking time of an item to a JSONL file inside a config-specific folder.
     JSONL because it is memory efficient: just add a new line each time. No need to load the whole file in memory
@@ -729,7 +741,7 @@ def log_time(item_code, request_index, time_value, log_type):
     folder_path = os.path.join("main_result_output", config.name)
     os.makedirs(folder_path, exist_ok=True)
 
-    filename = f"{log_type}_times.jsonl"
+    filename = f"{log_type}_times_run{run_index}.jsonl"
     log_path = os.path.join(folder_path, filename)
 
     key_name = f"{log_type}_time"  # either 'picking_time' or 'handling_time'
@@ -743,7 +755,7 @@ def log_time(item_code, request_index, time_value, log_type):
         f.write("\n")
 
 
-def write_summary(average_picking_time, average_handling_time, throughput_items_per_hour, total_orders, total_items):
+def write_summary(average_picking_time, average_handling_time, throughput_items_per_hour, total_orders, total_items, run_index):
     """
     Appends summary metrics as a JSON line to summary.jsonl in the config-specific output folder.
     """
@@ -755,23 +767,55 @@ def write_summary(average_picking_time, average_handling_time, throughput_items_
         "average_handling_time": average_handling_time,
         "throughput_items_per_hour": throughput_items_per_hour,
         "total_orders": total_orders,
-        "total_items": total_items
+        "total_items": total_items,
+        "run_index": run_index
     }
 
-    summary_path = os.path.join(folder_path, "summary.jsonl")
-    with open(summary_path, "a") as f:
+    summary_path = os.path.join(folder_path, f"summary_run{run_index}.jsonl")
+    with open(summary_path, "w") as f:  # Use "w" since it's per-run and won't be reused
         json.dump(summary_data, f)
         f.write("\n")
 
     debug_print(f"Summary appended to {summary_path}")
 
-''' ====================== MAIN ====================== '''
+
+def merge_and_clean_jsonl_files(folder, base_filename):
+    output_file = os.path.join(folder, f"{base_filename}.jsonl")
+    input_files = sorted(glob.glob(os.path.join(folder, f"{base_filename}_run*.jsonl")))
+
+    with open(output_file, "w") as out_f:
+        for file in input_files:
+            with open(file, "r") as in_f:
+                for line in in_f:
+                    out_f.write(line)
+
+    # Optionally remove individual files after merge
+    for file in input_files:
+        os.remove(file)
+
+def merge_summary_files(folder):
+    output_file = os.path.join(folder, "summary.jsonl")
+    summary_files = sorted(glob.glob(os.path.join(folder, "summary_run*.jsonl")))
+
+    with open(output_file, "w") as out_f:
+        for file in summary_files:
+            with open(file, "r") as in_f:
+                for line in in_f:
+                    out_f.write(line)
+
+
 # start with empty logging files
 initialize_result_files()
-for run in range(config.AMOUNT_OF_RUNS):
+
+''' ====================== MAIN ====================== '''
+def run_simulation_once(run_index):
+    rng = random.Random(run_index)  # For Python stdlib random
+    np_rng = np.random.default_rng(seed=run_index)  # For NumPy and scipy
+
     # Create the orders, inventory and fill the trays
-    order_list, inventory_list, grouped_orders = get_inventory_and_orders(config.hours)
-    tray_items = get_tray_filling_from_data(inventory_list, config.TRAY_FILLING_MODE, config.tray_length, config.tray_width, config.max_trays)
+    order_list, inventory_list, grouped_orders = get_inventory_and_orders(config.hours, rng=rng, np_rng=np_rng)
+    tray_items = get_tray_filling_from_data(inventory_list, config.TRAY_FILLING_MODE, config.tray_length,
+                                            config.tray_width, config.max_trays)
 
     # Variables to calculate the throughput of the system. Divide the total time and count to get the average time per item
     # Easily calculate items per hour using: 3600 / average_time
@@ -784,102 +828,33 @@ for run in range(config.AMOUNT_OF_RUNS):
     env.picking_count = 0
 
     # for average item time
-    env.request_start = 0.0     # item_stop - item_start = total time to handle an item or a batch of items
+    env.request_start = 0.0  # item_stop - item_start = total time to handle an item or a batch of items
     env.request_stop = 0.0
-    env.item_picking_times = []         # list of item times in a batch
+    env.item_picking_times = []  # list of item times in a batch
     env.total_handling_time = 0.0
     env.item_count = 0
     env.order_count = 0
-
-    # Create the simulation environment
-    # env = sim.Environment(trace=False)    # Moved to top of the script to declare global variables
 
     # Create a state to help with synchronization
     elevator_done = sim.State('elevator_done')
 
     # Create the components
     warehouse = Warehouse(config.WAREHOUSE_HEIGHT)
-
-    # Add random items to the Warehouse (stock)
-    # warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-    # warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-    # warehouse.add_item(Item(name="Plakband"), tray_id=3)
-    # warehouse.add_item(Item(name="Schoen"), tray_id=2)
-    # warehouse.add_item(Item(name="test"), tray_id=5)
-    # warehouse.add_item(Item(name="Schoen"), tray_id=2)
-
     fill_warehouse_from_tray_items(tray_items, warehouse)
-
-    # Make requests
-    # requests = []
-    # requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
-    # requests.append(Request(item_names=["Schoen"]))
-    # requests.append(Request(item_names=["test"]))
     requests = create_requests_from_grouped_orders(grouped_orders)
-
 
     # Create an Operator and give it the necessary objects
     # The operator is the only Component that executes its process method from the start
     amount_of_items = sum(len(items) for items in order_list.values())
-    operator = Operator(env=env, amount_of_items=amount_of_items)
-    elevator = Elevator(env=env)
+    elevator = Elevator(env=env, elevator_done=elevator_done)
     if config.AMOUNT_OF_ELEVATORS == 2:
         elevator_2 = Elevator(env=env)
-
-    ########################################################################################
-    #Start Visualisatie code
-    env.animate(False)
-
-    available_height = env.height() - 2*config.TRAY_HEIGHT  # 20 boven en 20 onder als marge
-    config.LEVEL_HEIGHT = available_height / config.WAREHOUSE_HEIGHT
-    config.BASE_Y = config.TRAY_HEIGHT + 20
-    config.TRAY_HEIGHT = config.LEVEL_HEIGHT * 0.8
-
-    # Visualiseer de trays
-    for level in range(config.WAREHOUSE_HEIGHT):
-        tray_y = config.BASE_Y + level * config.LEVEL_HEIGHT
-
-        sim.AnimateRectangle(
-            (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
-            x=config.TRAY_X_LEFT,
-            y=tray_y,
-            fillcolor='gray',
-            linecolor='black',  # ➜ zwarte rand
-            linewidth=1,  # ➜ dunne lijn
-            text=f"Level {level}",
-            text_anchor="center",
-            fontsize=14  # ➜ grotere tekst
-        )
-
-        sim.AnimateRectangle(
-            (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
-            x=config.TRAY_X_RIGHT,
-            y=tray_y,
-            fillcolor='gray',
-            linecolor='black',  # ➜ zwarte rand
-            linewidth=1,  # ➜ dunne lijn
-            text=f"Level {level}",
-            text_anchor="center",
-            fontsize=14  # ➜ grotere tekst
-        )
-        sim.AnimateRectangle(
-            (-config.TRAY_WIDTH // 2, -config.TRAY_HEIGHT // 2, config.TRAY_WIDTH // 2, config.TRAY_HEIGHT // 2),
-            x=config.LIFT_X_POSITION,
-            y=lambda: elevator.y_position,     # ➜ volgt real-time de positie van de lift
-            fillcolor= lambda: "blue" if not elevator.empty else 'red',
-            linecolor='black',
-            text=lambda: elevator.item if not elevator.empty else "Empty",
-            text_anchor="center",
-            fontsize=14
-        )
+    operator = Operator(env=env, amount_of_items=amount_of_items, requests=requests, warehouse=warehouse, elevator=elevator, elevator_done=elevator_done, run_index=run_index, np_rng=np_rng)
 
     try:
-        env.run(3000000)
+        env.run()
     except SimulationStopped:
         pass  # Quietly ignore the exception
-
-    # for event in event_log:
-    #     debug_print(event)
 
     debug_print("\n\n============ END ============\n\n")
 
@@ -890,7 +865,7 @@ for run in range(config.AMOUNT_OF_RUNS):
     average_picking_time = env.total_picking_time / env.picking_count
     average_item_time = env.total_handling_time / env.item_count
     item_throughput = 3600 / average_item_time  # items per hour
-    write_summary(average_picking_time, average_item_time, item_throughput, env.order_count, env.item_count)
+    write_summary(average_picking_time, average_item_time, item_throughput, env.order_count, env.item_count, run_index)
 
     # Show the average pick time
     print(f"Average pick time: {average_picking_time}")
@@ -898,3 +873,16 @@ for run in range(config.AMOUNT_OF_RUNS):
     print(f"Item throughput: {3600 / average_item_time:.1f} items per hour")
 
     print("✅ All files were saved")
+
+if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn")  # Required on Windows and recommended for safety
+
+    num_runs = config.AMOUNT_OF_RUNS
+
+    with multiprocessing.Pool() as pool:
+        pool.map(run_simulation_once, range(num_runs))
+
+    folder = f"main_result_output/{config.name}"
+    merge_and_clean_jsonl_files(folder, "picking_times")
+    merge_and_clean_jsonl_files(folder, "handling_times")
+    merge_and_clean_jsonl_files(folder, "summary")

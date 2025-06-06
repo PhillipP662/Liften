@@ -1,0 +1,10 @@
+{"average_picking_time": 3.1845486932544946, "average_handling_time": 16.172570891427295, "throughput_items_per_hour": 222.59911699680825, "total_orders": 318, "total_items": 1992, "run_index": 0}
+{"average_picking_time": 3.799596131327922, "average_handling_time": 15.71966403405385, "throughput_items_per_hour": 229.01252801594498, "total_orders": 269, "total_items": 1744, "run_index": 1}
+{"average_picking_time": 3.0963965296975595, "average_handling_time": 16.372762291834622, "throughput_items_per_hour": 219.87737535256232, "total_orders": 344, "total_items": 2027, "run_index": 2}
+{"average_picking_time": 2.801422011421742, "average_handling_time": 15.441124957849551, "throughput_items_per_hour": 233.14363492472918, "total_orders": 297, "total_items": 1860, "run_index": 3}
+{"average_picking_time": 2.9969269890346766, "average_handling_time": 17.330075677390084, "throughput_items_per_hour": 207.73134907291768, "total_orders": 463, "total_items": 2730, "run_index": 4}
+{"average_picking_time": 3.718809270888884, "average_handling_time": 16.36035267141426, "throughput_items_per_hour": 220.04415627849664, "total_orders": 361, "total_items": 2238, "run_index": 5}
+{"average_picking_time": 3.117038461456885, "average_handling_time": 18.523382482116574, "throughput_items_per_hour": 194.34895346331186, "total_orders": 451, "total_items": 2380, "run_index": 6}
+{"average_picking_time": 3.207399782520291, "average_handling_time": 17.625955700252234, "throughput_items_per_hour": 204.24424418293998, "total_orders": 426, "total_items": 2299, "run_index": 7}
+{"average_picking_time": 2.977792355425885, "average_handling_time": 16.555197379158628, "throughput_items_per_hour": 217.45436901477524, "total_orders": 369, "total_items": 2120, "run_index": 8}
+{"average_picking_time": 4.085278034213596, "average_handling_time": 18.653090568007478, "throughput_items_per_hour": 192.9975082078075, "total_orders": 445, "total_items": 2417, "run_index": 9}

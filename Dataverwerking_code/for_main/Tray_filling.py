@@ -8,6 +8,13 @@ import pandas as pd
 # from Dataverwerking_code.Preprocessing import load_simulation
 
 
+USE_PRINT = False
+
+def debug_print(*args, **kwargs):
+    # use this instead of "print". it automatically checks if USE_PRINT is set or not
+    if USE_PRINT:
+        print(*args, **kwargs)
+
 def load_simulation(filename):
     # lees CSV en groepeer terug naar dict {date: [item_codes]}
     df = pd.read_csv(filename, parse_dates=["date"])
@@ -52,18 +59,30 @@ def load_ordered_items(filename):
 def get_ordered_item_dimensions(ordered_item_codes, all_dimensions):
     """
     Retourneert een lijst van (l, w, code) tuples, één keer per itemcode in de lijst.
+    Als een item geen dimensie heeft, gebruik dan gemiddelde dimensies als fallback.
     """
     items = []
     missing = []
+
+    # Bereken gemiddelde lengte en breedte
+    lengths = [dims[0] for dims in all_dimensions.values()]
+    widths = [dims[1] for dims in all_dimensions.values()]
+    avg_l = sum(lengths) / len(lengths)
+    avg_w = sum(widths) / len(widths)
+
     for code in ordered_item_codes:
         if code in all_dimensions:
             l, w = all_dimensions[code]
-            items.append((l, w, code))  # include code to preserve identity
         else:
+            l, w = avg_l, avg_w
             missing.append(code)
+        items.append((l, w, code))
+
     if missing:
         unique_missing = set(missing)
-        print(f"⚠️ Waarschuwing: {len(unique_missing)} item(s) hebben geen dimensie: {unique_missing}")
+        debug_print(f"⚠️ Waarschuwing: {len(unique_missing)} item(s) hadden geen dimensie. "
+                    f"Gemiddelde dimensies gebruikt voor: {unique_missing}")
+
     return items
 
 
@@ -298,7 +317,7 @@ def fill_trays_by_frequency(ordered_item_codes, all_dimensions, tray_length, tra
     items_with_dims = [(code, all_dimensions[code]) for code in freq_table if code in all_dimensions]
     missing = [code for code in freq_table if code not in all_dimensions]
     if missing:
-        print(f"⚠️ {len(missing)} item(s) hebben geen dimensie: {set(missing)}")
+        debug_print(f"⚠️ {len(missing)} item(s) hebben geen dimensie: {set(missing)}")
 
     # 3. Sorteer op frequentie (hoog → laag)
     sorted_items = sorted(items_with_dims, key=lambda x: -freq_table[x[0]])
@@ -339,20 +358,20 @@ def print_tray_results(tray_items, not_placed, items):
     - not_placed: lijst van item-ID's die niet pasten
     - items: originele lijst van (l, w) tuples
     """
-    print("📦 Tray-inhoud:")
+    debug_print("📦 Tray-inhoud:")
     for tray_index, itemlist in tray_items.items():
         if itemlist:
-            print(f"\nTray {tray_index}:")
+            debug_print(f"\nTray {tray_index}:")
             for item in itemlist:
-                print(f"  - Item {item['item_id']} op ({item['x']:.2f}, {item['y']:.2f}) [{item['l']} x {item['w']}]")
+                debug_print(f"  - Item {item['item_id']} op ({item['x']:.2f}, {item['y']:.2f}) [{item['l']} x {item['w']}]")
 
     if not_placed:
-        print("\n⚠️ Niet geplaatste items:")
+        debug_print("\n⚠️ Niet geplaatste items:")
         for rid in not_placed:
             l, w = items[rid]
-            print(f"- Item {rid} ({l} x {w})")
+            debug_print(f"- Item {rid} ({l} x {w})")
     else:
-        print("\n✅ Alle items zijn geplaatst.")
+        debug_print("\n✅ Alle items zijn geplaatst.")
 
 
 def calculate_unused_space(tray_items, tray_length, tray_width):
@@ -399,21 +418,21 @@ def validate_trays(tray_items, tray_length=1.0, tray_width=1.0):
     for tray_index, items in tray_items.items():
         for i, item in enumerate(items):
             if is_out_of_bounds(item):
-                print(f"❌ Item {item['item_id']} in Tray {tray_index} is out of bounds.")
+                debug_print(f"❌ Item {item['item_id']} in Tray {tray_index} is out of bounds.")
                 all_valid = False
 
             for j in range(i + 1, len(items)):
                 other = items[j]
                 if items_overlap(item, other):
-                    print(f"❌ Item {item['item_id']} overlaps with Item {other['item_id']} in Tray {tray_index}.")
+                    debug_print(f"❌ Item {item['item_id']} overlaps with Item {other['item_id']} in Tray {tray_index}.")
                     all_valid = False
 
     if all_valid:
-        print("✅ All trays are valid: no overlaps and all items within bounds.")
+        debug_print("✅ All trays are valid: no overlaps and all items within bounds.")
     return all_valid
 
 def get_tray_filling():
-    print("Start simulatie")
+    debug_print("Start simulatie")
     # Load all onze Simulated bestellingen en Augemented bestellingen en dimensiematrix
     # sim_loaded = load_simulation("Dataverwerking_code/Dataverwerking_data_output/sim_output.csv")
     # augmented_loaded = load_simulation("Dataverwerking_code/Dataverwerking_data_output/augmented_output.csv")
@@ -427,23 +446,23 @@ def get_tray_filling():
         "Dataverwerking_code/Dataverwerking_data_output/augmented_output.csv")  # sim_output.csv of augmented_output.csv
 
     items = get_ordered_item_dimensions(ordered_codes, loaded)
-    print("Greedy sorted: ")
+    debug_print("Greedy sorted: ")
     tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
 
-    print("Trays are filled")
+    debug_print("Trays are filled")
 
     print_tray_results(tray_items, not_placed, items)
     unused_per_tray, total_unused = calculate_unused_space(tray_items, tray_length, tray_width)
-    print("\n📏 Ongebruikte ruimte per tray:")
+    debug_print("\n📏 Ongebruikte ruimte per tray:")
     for tray_index, unused in unused_per_tray.items():
-        print(f"- Tray {tray_index}: {unused:.4f} m² ongebruikt")
+        debug_print(f"- Tray {tray_index}: {unused:.4f} m² ongebruikt")
 
-    print(f"\n📊 Totale ongebruikte ruimte: {total_unused:.4f} m²")
-    print("----------------------------------------------------------------- ")
+    debug_print(f"\n📊 Totale ongebruikte ruimte: {total_unused:.4f} m²")
+    debug_print("----------------------------------------------------------------- ")
 
     VALIDATE = True
     if VALIDATE:
-        print("Validating if trays are filled correctly...")
+        debug_print("Validating if trays are filled correctly...")
         if not validate_trays(tray_items, tray_length=tray_length, tray_width=tray_width):
             raise Exception("Trays were not filled properly...")
 
