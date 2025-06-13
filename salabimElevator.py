@@ -801,21 +801,9 @@ for run in range(config.AMOUNT_OF_RUNS):
     # Create the components
     warehouse = Warehouse(config.WAREHOUSE_HEIGHT)
 
-    # Add random items to the Warehouse (stock)
-    # warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-    # warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-    # warehouse.add_item(Item(name="Plakband"), tray_id=3)
-    # warehouse.add_item(Item(name="Schoen"), tray_id=2)
-    # warehouse.add_item(Item(name="test"), tray_id=5)
-    # warehouse.add_item(Item(name="Schoen"), tray_id=2)
-
     fill_warehouse_from_tray_items(tray_items, warehouse)
 
     # Make requests
-    # requests = []
-    # requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
-    # requests.append(Request(item_names=["Schoen"]))
-    # requests.append(Request(item_names=["test"]))
     requests = create_requests_from_grouped_orders(grouped_orders)
 
 
