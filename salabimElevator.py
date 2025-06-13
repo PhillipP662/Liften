@@ -35,7 +35,7 @@ def load_config(filepath):
 # Adjustable parameters. Make a new YAML file if you want different configurations
 # All parameters are now in yaml files
 # Call with "config.<PARAMETER_NAME>"
-config = load_config("Configurations/test.yaml")
+config = load_config("Configurations/base.yaml")
 
 event_log = []
 unfulfilled_requests = []
