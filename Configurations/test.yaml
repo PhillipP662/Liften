@@ -15,7 +15,7 @@ TRAYS_PER_ROW: 2  # Kies of er één of twee rijen trays zijn
 #fill_trays_sequential = TRAY_FILLING_MODE : 2
 #fill_trays_random_best_fit = TRAY_FILLING_MODE : 3
 #fill_trays_by_frequency = TRAY_FILLING_MODE : 4
-TRAY_FILLING_MODE : 2
+TRAY_FILLING_MODE : 1
 
 tray_length : 2.025 # uit brochure. Middelmaat: 2,025 x 1,323 m
 tray_width : 1.323

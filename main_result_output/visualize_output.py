@@ -22,31 +22,36 @@ def plot_histogram(durations, title, xlabel):
     bins = sorted(counts.keys())
     heights = [counts[b] for b in bins]
 
+    plt.rcParams['axes.titlesize'] = 21
+    plt.rcParams['axes.labelsize'] = 19
+    plt.rcParams['xtick.labelsize'] = 15  # Lettergrootte van x-as tick labels
+    plt.rcParams['ytick.labelsize'] = 15  # Lettergrootte van y-as tick labels
+
     plt.figure(figsize=(10, 5))
     plt.bar(bins, heights, width=0.5, align='center')
     plt.xlabel(xlabel)
-    plt.ylabel("Frequency")
+    plt.ylabel("Frequentie")
     plt.title(title)
     plt.grid(axis='y')
 
     # Set axis limits
-    plt.xlim(0, 160)
-    plt.ylim(0, 6000)   # 5800
+    plt.xlim(0, 140)
+    plt.ylim(0, 13000)   # 5800   50000
 
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
-    folder = "base_kleine_trays"
+    folder = "base_vul_strategie_2"
 
     # Handling time plot
     handling_durations = load_rounded_half_second_durations(
         os.path.join(folder, "handling_times.jsonl"), "handling_time"
     )
-    plot_histogram(handling_durations, f"Handling Time Distribution - Small Trays", "Handling Time (s)")
+    plot_histogram(handling_durations, f"Verwerkingstijden items - Sequentiële plaatsing", "Verwerkingstijd (s)")
 
     # Picking time plot
-    picking_durations = load_rounded_half_second_durations(
-        os.path.join(folder, "picking_times.jsonl"), "picking_time"
-    )
-    plot_histogram(picking_durations, "Picking Time Distribution", "Picking Time (s)")
+    # picking_durations = load_rounded_half_second_durations(
+    #     os.path.join(folder, "picking_times.jsonl"), "picking_time"
+    # )
+    # plot_histogram(picking_durations, "Picking Time Distribution", "Picking Time (s)")

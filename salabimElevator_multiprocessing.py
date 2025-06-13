@@ -21,7 +21,8 @@ from Dataverwerking_code.for_main.Tray_filling import get_tray_filling_from_data
 from Dataverwerking_code.for_main.Picktijden import generate_picktime_samples
 
 ''' =============== Global parameters and variables =============== '''
-USE_PRINT = False
+USE_PRINT = True
+# USE_ANIMATION = False     # No animation available
 
 def debug_print(*args, **kwargs):
     # use this instead of "print". it automatically checks if USE_PRINT is set or not

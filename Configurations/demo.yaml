@@ -1,11 +1,11 @@
-name: base_kleine_trays
+name: test
 
 # Adjustable parameters
 OPERATOR_LEVEL: 0  # At which level the operator is working
 AMOUNT_OF_ELEVATORS: 1  # DON'T CHANGE YET! Not yet implemented for 1+ elevators
 
 # Adjustable parameters Visualisatie
-WAREHOUSE_HEIGHT: 100  # Aantal verdiepingen
+WAREHOUSE_HEIGHT: 5 # Aantal verdiepingen
 ELEVATOR_RETRIEVE_TIME: 4.8
 ELEVATOR_RETURN_TIME: 4.8
 TRAYS_PER_ROW: 2  # Kies of er één of twee rijen trays zijn
@@ -17,9 +17,9 @@ TRAYS_PER_ROW: 2  # Kies of er één of twee rijen trays zijn
 #fill_trays_by_frequency = TRAY_FILLING_MODE : 4
 TRAY_FILLING_MODE : 1
 
-tray_length : 1.825 # uit brochure. kleinste mode: 1,825 x 0,625
-tray_width : 0.625
-max_trays : 200
+tray_length : 2.025 # uit brochure. Middelmaat: 2,025 x 1,323 m
+tray_width : 1.323
+max_trays : 100
 
 hours : 6
 
@@ -35,4 +35,4 @@ BASE_Y: 260
 
 # Overige parameters
 PRE_PROCESSING_STRATEGY: 1
-AMOUNT_OF_RUNS: 100
+AMOUNT_OF_RUNS: 1

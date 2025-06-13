@@ -16,7 +16,7 @@ from Dataverwerking_code.for_main.Picktijden import generate_picktime_samples
 
 ''' =============== Global parameters and variables =============== '''
 USE_PRINT = True
-USE_ANIMATION = False
+USE_ANIMATION = True
 
 def debug_print(*args, **kwargs):
     # use this instead of "print". it automatically checks if USE_PRINT is set or not
@@ -35,7 +35,7 @@ def load_config(filepath):
 # Adjustable parameters. Make a new YAML file if you want different configurations
 # All parameters are now in yaml files
 # Call with "config.<PARAMETER_NAME>"
-config = load_config("Configurations/test.yaml")
+config = load_config("Configurations/demo.yaml")
 
 event_log = []
 unfulfilled_requests = []
@@ -771,8 +771,8 @@ def write_summary(average_picking_time, average_handling_time, throughput_items_
 initialize_result_files()
 for run in range(config.AMOUNT_OF_RUNS):
     # Create the orders, inventory and fill the trays
-    order_list, inventory_list, grouped_orders = get_inventory_and_orders(config.hours)
-    tray_items = get_tray_filling_from_data(inventory_list, config.TRAY_FILLING_MODE, config.tray_length, config.tray_width, config.max_trays)
+    # order_list, inventory_list, grouped_orders = get_inventory_and_orders(config.hours)
+    # tray_items = get_tray_filling_from_data(inventory_list, config.TRAY_FILLING_MODE, config.tray_length, config.tray_width, config.max_trays)
 
     # Variables to calculate the throughput of the system. Divide the total time and count to get the average time per item
     # Easily calculate items per hour using: 3600 / average_time
@@ -802,26 +802,26 @@ for run in range(config.AMOUNT_OF_RUNS):
     warehouse = Warehouse(config.WAREHOUSE_HEIGHT)
 
     # Add random items to the Warehouse (stock)
-    # warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-    # warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
-    # warehouse.add_item(Item(name="Plakband"), tray_id=3)
-    # warehouse.add_item(Item(name="Schoen"), tray_id=2)
-    # warehouse.add_item(Item(name="test"), tray_id=5)
-    # warehouse.add_item(Item(name="Schoen"), tray_id=2)
+    warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
+    warehouse.add_item(Item(name="Schroevendraaier"), tray_id=3)
+    warehouse.add_item(Item(name="Plakband"), tray_id=3)
+    warehouse.add_item(Item(name="Schoen"), tray_id=2)
+    warehouse.add_item(Item(name="test"), tray_id=5)
+    warehouse.add_item(Item(name="Schoen"), tray_id=2)
 
-    fill_warehouse_from_tray_items(tray_items, warehouse)
+    # fill_warehouse_from_tray_items(tray_items, warehouse)
 
     # Make requests
-    # requests = []
-    # requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
-    # requests.append(Request(item_names=["Schoen"]))
-    # requests.append(Request(item_names=["test"]))
-    requests = create_requests_from_grouped_orders(grouped_orders)
+    requests = []
+    requests.append(Request(item_names=["Schroevendraaier", "Schroevendraaier", "Plakband"]))
+    requests.append(Request(item_names=["Schoen"]))
+    requests.append(Request(item_names=["test"]))
+    # requests = create_requests_from_grouped_orders(grouped_orders)
 
 
     # Create an Operator and give it the necessary objects
     # The operator is the only Component that executes its process method from the start
-    amount_of_items = sum(len(items) for items in order_list.values())
+    amount_of_items = sum(len(items.item_names) for items in requests)
     operator = Operator(env=env, amount_of_items=amount_of_items)
     elevator = Elevator(env=env)
     if config.AMOUNT_OF_ELEVATORS == 2:
@@ -884,18 +884,18 @@ for run in range(config.AMOUNT_OF_RUNS):
 
     debug_print("\n\n============ END ============\n\n")
 
-    # Save the summary information in a json file
-    total_items_verify = sum(len(strings) for strings in order_list.values())
-    print(f"Total items to verify: {total_items_verify}")
-
-    average_picking_time = env.total_picking_time / env.picking_count
-    average_item_time = env.total_handling_time / env.item_count
-    item_throughput = 3600 / average_item_time  # items per hour
-    write_summary(average_picking_time, average_item_time, item_throughput, env.order_count, env.item_count)
-
-    # Show the average pick time
-    print(f"Average pick time: {average_picking_time}")
-    print(f"Average item time: {average_item_time}")
-    print(f"Item throughput: {3600 / average_item_time:.1f} items per hour")
-
-    print("✅ All files were saved")
+    # # Save the summary information in a json file
+    # total_items_verify = sum(len(strings) for strings in order_list.values())
+    # print(f"Total items to verify: {total_items_verify}")
+    #
+    # average_picking_time = env.total_picking_time / env.picking_count
+    # average_item_time = env.total_handling_time / env.item_count
+    # item_throughput = 3600 / average_item_time  # items per hour
+    # write_summary(average_picking_time, average_item_time, item_throughput, env.order_count, env.item_count)
+    #
+    # # Show the average pick time
+    # print(f"Average pick time: {average_picking_time}")
+    # print(f"Average item time: {average_item_time}")
+    # print(f"Item throughput: {3600 / average_item_time:.1f} items per hour")
+    #
+    # print("✅ All files were saved")

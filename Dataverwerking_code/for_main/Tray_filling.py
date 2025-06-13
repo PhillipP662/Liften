@@ -87,8 +87,10 @@ def get_ordered_item_dimensions(ordered_item_codes, all_dimensions):
 
 
 #Eerste Algo is een greedy gesorteert
-def fill_trays_Greedy(items, tray_length, tray_width, max_trays, allow_rotation=False):
+def fill_trays_bin_packing(items, tray_length, tray_width, max_trays, allow_rotation=False):
     """
+    Geoptimaliseerde plaatsing met bin-packing algoritme
+
     item_dim_dict: dict van item_id (str of int) -> (l, w)
     """
     packer = newPacker(rotation=allow_rotation)
@@ -476,7 +478,7 @@ def get_tray_filling_from_data(augmented_data, mode,tray_length, tray_width, max
     items = get_ordered_item_dimensions(ordered_codes, loaded)
 
     if mode == 1:
-        tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
+        tray_items, not_placed = fill_trays_bin_packing(items, tray_length, tray_width, max_trays)
     elif mode == 2:
         tray_items, not_placed = fill_trays_sequential(items, tray_length, tray_width, max_trays)
     elif mode == 3:
@@ -484,7 +486,7 @@ def get_tray_filling_from_data(augmented_data, mode,tray_length, tray_width, max
     elif mode == 4:
         tray_items, not_placed = fill_trays_by_frequency(items, tray_length, tray_width, max_trays)
     else:
-        tray_items, not_placed = fill_trays_Greedy(items, tray_length, tray_width, max_trays)
+        tray_items, not_placed = fill_trays_bin_packing(items, tray_length, tray_width, max_trays)
 
     return tray_items
 
