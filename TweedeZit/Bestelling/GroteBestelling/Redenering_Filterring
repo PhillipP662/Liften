@@ -1,0 +1,207 @@
+Gemiddelde aantal items per bestelling: 4.83
+Variantie: 138.86
+📌 Geometric p = 0.2072
+📌 NB r = 0.17, p = 0.0348
+Plot opgeslagen als 'fit_verdelingen_plot.png'
+
+Distribution Summary
+Distribution: Negative Binomial
+Expression: NB(r=0.17, p=0.0348)
+Square Error: 0.000077
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 73
+Test Statistic = 7631.39
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test (discrete adjusted)
+Test Statistic = 0.5578
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22960
+Min Data Value = 1
+-------------------------------------------------
+Max Data Value = 715 -> waarde insane hoog in vergelijking met de werkelijkheid. Dit is te wijten aan de uitschieters
+-------------------------------------------------
+Sample Mean = 4.83
+Sample Std Dev = 11.78
+
+Distribution Summary
+Distribution: Gamma
+Expression: GAMM(0.92, 5.270)
+Square Error: 0.041868
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 15
+Test Statistic = 5043.6
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test
+Test Statistic = 0.2191
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22960
+Min Data Value = 1.00000
+---------------------------------------------------------------------------------------
+Max Data Value = 715.00 -> Ook hier het zelfde verhaal.
+---------------------------------------------------------------------------------------
+Sample Mean = 4.83
+Sample Std Dev = 11.78
+--------------------------------------------------------------------------------------------------------------------------
+Filtering toepassn -> data<50
+Gemiddelde aantal items per bestelling: 4.83
+Variantie: 138.86
+📌 Geometric p = 0.2072
+📌 NB r = 0.17, p = 0.0348
+Plot opgeslagen als 'fit_verdelingen_plot.png'
+
+Distribution Summary
+Distribution: Negative Binomial
+Expression: NB(r=0.57, p=0.1175)
+Square Error: 0.000213
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 40
+Test Statistic = 2290.81
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test (discrete adjusted)
+Test Statistic = 0.2978
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22812
+Min Data Value = 1
+Max Data Value = 49
+Sample Mean = 4.25
+Sample Std Dev = 6.01
+
+Distribution Summary
+Distribution: Gamma
+Expression: GAMM(1.08, 3.950)
+Square Error: 0.005663
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 15
+Test Statistic = 8802.6
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test
+Test Statistic = 0.2188
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22812
+Min Data Value = 1.00000
+Max Data Value = 49.00
+Sample Mean = 4.25
+Sample Std Dev = 6.01
+----------------------------------------------------------------------------------------------------------------------
+Procentuele filtering 99%
+Gemiddelde aantal items per bestelling: 4.83
+Variantie: 138.86
+📌 Geometric p = 0.2072
+📌 NB r = 0.17, p = 0.0348
+Plot opgeslagen als 'fit_verdelingen_plot.png'
+
+Distribution Summary
+Distribution: Negative Binomial
+Expression: NB(r=0.64, p=0.1340)
+Square Error: 0.000336
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 37
+Test Statistic = 2707.53
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test (discrete adjusted)
+Test Statistic = 0.2782
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22736
+Min Data Value = 1
+Max Data Value = 41
+Sample Mean = 4.11
+Sample Std Dev = 5.54
+
+Distribution Summary
+Distribution: Gamma
+Expression: GAMM(1.12, 3.675)
+Square Error: 0.007280
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 15
+Test Statistic = 11398.0
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test
+Test Statistic = 0.2183
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22736
+Min Data Value = 1.00000
+Max Data Value = 41.00
+Sample Mean = 4.11
+Sample Std Dev = 5.54
+----------------------------------------------------------------------------------------------------------------------
+
+Filtering methode 3
+Gemiddelde aantal items per bestelling: 4.83
+Variantie: 138.86
+📌 Geometric p = 0.2072
+📌 NB r = 0.17, p = 0.0348
+Plot opgeslagen als 'fit_verdelingen_plot.png'
+
+Distribution Summary
+Distribution: Negative Binomial
+Expression: NB(r=0.40, p=0.0797)
+Square Error: 0.000072
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 50
+Test Statistic = 2029.84
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test (discrete adjusted)
+Test Statistic = 0.3667
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22933
+Min Data Value = 1
+Max Data Value = 97
+Sample Mean = 4.58
+Sample Std Dev = 7.58
+
+Distribution Summary
+Distribution: Gamma
+Expression: GAMM(0.98, 4.667)
+Square Error: 0.005941
+
+Chi Square Test
+Number of intervals = 18
+Degrees of freedom = 15
+Test Statistic = 6023.2
+Corresponding p-value = 0.0000
+
+Kolmogorov-Smirnov Test
+Test Statistic = 0.2194
+Corresponding p-value = 0.0000
+
+Data Summary
+Number of Data Points = 22933
+Min Data Value = 1.00000
+Max Data Value = 97.00
+Sample Mean = 4.58
+Sample Std Dev = 7.58
