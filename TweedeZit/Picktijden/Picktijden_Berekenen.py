@@ -5,10 +5,12 @@ from datetime import datetime
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
+from seaborn.external.kde import gaussian_kde
 from sklearn.mixture import GaussianMixture
 from scipy.stats import norm
 
 from matplotlib import pyplot as plt
+from sklearn.preprocessing import StandardScaler
 
 
 def lees_bestellingdensity_kolommen(bestandspaden: list[str]) -> pd.DataFrame:
@@ -102,10 +104,10 @@ def exporteer_naar_json(df: pd.DataFrame, uitvoerpad: str):
 
     print(f"✅ JSON-bestand opgeslagen in: {uitvoerpad}")
 
-def InlezenJsonGegevens(pad, methode):
+def InlezenJsonGegevens(pad, methode,exportpad):
     df = lees_bestellingdensity_kolommen(pad)
     df = afronden_op_seconde(df, methode)  # afronden naar dichtbijzijnde
-    exporteer_naar_json(df, "bestellingen.json")
+    exporteer_naar_json(df, exportpad)
 
 
 
@@ -358,23 +360,387 @@ def sample_from_gmm(gmm_model: GaussianMixture, n: int) -> np.ndarray:
     samples = np.random.normal(loc=means[componenten], scale=stds[componenten])
     return samples
 
+# ---------- 1) Data laden + globaal IQR-filter ----------
+def load_filtered_picktijden(csv_pad: str, kolom: str = "Picktijd (sec)"):
+    df = pd.read_csv(csv_pad)
+    df = df[['Requester user code', kolom]].dropna()
+    df[kolom] = pd.to_numeric(df[kolom], errors='coerce')
+    df = df.dropna(subset=[kolom])
 
-pad = file_list = [
-    '../Data/Input/1_VerdelingItem01_03.xlsx',
-    '../Data/Input/2_VerdelingItem04_06.xlsx',
-    '../Data/Input/3_VerdelingItem07_09.xlsx',
-    '../Data/Input/4_VerdelingItem10_12.xlsx',
-    '../Data/Input/5_VerdelingItem13_15.xlsx',
-    '../Data/Input/6_VerdelingItem16_19.xlsx',
-]
+    t = df[kolom].values.astype(float)
+    q1, q3 = np.percentile(t, [25, 75])
+    iqr = q3 - q1
+    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    m = (t >= lo) & (t <= hi)
 
-#InlezenJsonGegevens(pad,3)
-#bereken_picktijden_uit_json("bestellingen.json", "test")
-analyseer_picktijden_met_filter("test")
-#gmm_model = selecteer_best_aantal_componenten("test", max_components=40)
-#fit_en_plot_gmm_range("test","Picktijd (sec)",20, )
+    out = df.loc[m].rename(columns={kolom: 't'}).reset_index(drop=True)
+    kept_pct = 100 * m.mean()
+    print(f"✅ IQR-filter toegepast: {out.shape[0]} / {df.shape[0]} ({kept_pct:.1f}%) bewaard")
+    return out
 
-fit_en_plot_gmm("test",7, xlim_max=30)
-gmm7 = fit_gmm_model("test", "Picktijd (sec)", 7)
-samples = sample_from_gmm(gmm7, 10)
-print("🕒 Gesimuleerde picktijden:", samples)
+# ---------- 2) Kenmerken per picker ----------
+def build_picker_features(filtered_df: pd.DataFrame, min_n: int = 150):
+    d = filtered_df.copy()
+    d['logt'] = np.log1p(d['t'])
+
+    agg = d.groupby('Requester user code').agg(
+        n=('t', 'count'),
+        median=('t', 'median'),
+        mean=('t', 'mean'),
+        std=('t', 'std'),
+        q1=('t', lambda s: s.quantile(0.25)),
+        q3=('t', lambda s: s.quantile(0.75)),
+        frac_fast2=('t', lambda s: (s <= 2).mean()),
+        mu_log=('logt', 'mean'),
+        sd_log=('logt', 'std'),
+    ).reset_index()
+    agg['iqr'] = agg['q3'] - agg['q1']
+
+    feats = agg[agg['n'] >= min_n].reset_index(drop=True)
+    print(f"👥 Pickers met voldoende data (≥{min_n}): {len(feats)}")
+    return feats
+
+# ---------- 3) Clustering van pickers (BIC-gestuurd) ----------
+def cluster_pickers(features_df: pd.DataFrame,
+                    k_min: int = 1, k_max: int = 6,
+                    feature_cols=('mu_log', 'sd_log', 'frac_fast2'),
+                    random_state: int = 42):
+
+    X = features_df[list(feature_cols)].values
+    scaler = StandardScaler().fit(X)
+    Xs = scaler.transform(X)
+
+    bics, models = [], []
+    for k in range(k_min, k_max + 1):
+        gmm = GaussianMixture(n_components=k, covariance_type='full',
+                              random_state=random_state, n_init=10, max_iter=500)
+        gmm.fit(Xs)
+        bics.append(gmm.bic(Xs))
+        models.append(gmm)
+
+    best_idx = int(np.argmin(bics))
+    best_k = k_min + best_idx
+    best_model = models[best_idx]
+    labels = best_model.predict(Xs)
+
+    out = features_df.copy()
+    out['cluster'] = labels
+
+    bic_table = pd.DataFrame({'k': list(range(k_min, k_max + 1)), 'BIC': bics})
+    print("📉 BIC per k:\n", bic_table)
+    print(f"🏆 Gekozen aantal clusters (laagste BIC): k = {best_k}")
+    return out, best_model, bic_table
+
+# ---------- 4) Plots: dichtheden per cluster + total ----------
+def plot_cluster_kdes(filtered_df: pd.DataFrame,
+                      assignments_df: pd.DataFrame,
+                      xlim_max: float = 30):
+
+    df = filtered_df.merge(assignments_df[['Requester user code', 'cluster']],
+                           on='Requester user code', how='inner')
+    xs = np.linspace(0, np.percentile(df['t'], 99.5), 600)
+
+    # Totale KDE
+    kde_total = gaussian_kde(df['t'])
+    plt.figure(figsize=(10, 6))
+    plt.plot(xs, kde_total(xs), label='Totaal (KDE)', linewidth=2)
+
+    # KDE per cluster (geaggregeerd over pickers)
+    for c in sorted(df['cluster'].unique()):
+        t_c = df.loc[df['cluster'] == c, 't'].values
+        if len(t_c) < 50:  # te weinig punten → sla KDE over
+            continue
+        kde_c = gaussian_kde(t_c)
+        plt.plot(xs, kde_c(xs), label=f'Cluster {c} (n={len(t_c)})')
+
+    plt.title("Dichtheden per cluster vs totaal")
+    plt.xlabel("Picktijd (sec)")
+    plt.ylabel("Dichtheid")
+    plt.xlim(0, xlim_max)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+def print_cluster_summary(filtered_df: pd.DataFrame, assignments_df: pd.DataFrame):
+    df = filtered_df.merge(assignments_df[['Requester user code', 'cluster']],
+                           on='Requester user code', how='inner')
+    s = df.groupby('cluster')['t'].agg(['count','median','mean','std',
+                                        lambda x: x.quantile(0.25),
+                                        lambda x: x.quantile(0.75)]).reset_index()
+    s.columns = ['cluster','n','median','mean','std','q1','q3']
+    s['iqr'] = s['q3'] - s['q1']
+
+    pickers_per_cluster = assignments_df.groupby('cluster')['Requester user code'].nunique().reset_index()
+    pickers_per_cluster.columns = ['cluster','n_pickers']
+
+    out = s.merge(pickers_per_cluster, on='cluster')
+    print("\n📊 Samenvatting per cluster:")
+    print(out.sort_values('cluster').to_string(index=False, float_format=lambda x: f"{x:.3f}"))
+    return out
+
+def plot_cluster_kdes(filtered_df: pd.DataFrame,
+                      assignments_df: pd.DataFrame,
+                      xlim_max: float = 30):
+    df = filtered_df.merge(assignments_df[['Requester user code', 'cluster']],
+                           on='Requester user code', how='inner')
+    xs = np.linspace(0, np.percentile(df['t'], 99.5), 600)
+
+    # Totale KDE
+    kde_total = gaussian_kde(df['t'])
+    plt.figure(figsize=(10, 6))
+    plt.plot(xs, kde_total(xs), label='Totaal (KDE)', linewidth=2)
+
+    # KDE per cluster (geaggregeerd over pickers)
+    for c in sorted(df['cluster'].unique()):
+        t_c = df.loc[df['cluster'] == c, 't'].values
+        if len(t_c) < 50:  # te weinig punten → sla KDE over
+            continue
+        kde_c = gaussian_kde(t_c)
+        plt.plot(xs, kde_c(xs), label=f'Cluster {c} (n={len(t_c)})')
+
+    plt.title("Dichtheden per cluster vs totaal")
+    plt.xlabel("Picktijd (sec)")
+    plt.ylabel("Dichtheid")
+    plt.xlim(0, xlim_max)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+def _read_filtered(csv_path, col="Picktijd (sec)"):
+    if not csv_path.endswith(".csv"):
+        csv_path += ".csv"
+    df = pd.read_csv(csv_path, usecols=["Requester user code", col]).dropna()
+    t = pd.to_numeric(df[col], errors="coerce").dropna().values.astype(float)
+
+    # IQR filter (zoals eerder)
+    q1, q3 = np.percentile(t, [25, 75])
+    iqr = q3 - q1
+    lo, hi = q1 - 1.5*iqr, q3 + 1.5*iqr
+    keep = (t >= lo) & (t <= hi)
+    t_f = t[keep]
+    print(f"IQR keep: {t_f.size}/{t.size} = {100*t_f.size/t.size:.1f}%")
+    return t_f
+
+def _fit_gmm_bic(x, kmax=10):
+    X = x.reshape(-1,1)
+    bics, models = [], []
+    for k in range(1, kmax+1):
+        gmm = GaussianMixture(n_components=k, covariance_type="full",
+                              random_state=42, n_init=5, max_iter=500)
+        gmm.fit(X)
+        bics.append(gmm.bic(X))
+        models.append(gmm)
+    idx = int(np.argmin(bics))
+    print("BIC per k:", [(i+1, round(b,2)) for i,b in enumerate(bics)])
+    print(f"Beste k (laagste BIC): {idx+1}")
+    return models[idx], idx+1, bics
+
+def plot_empirical_vs_simulated(csv_path="test", col="Picktijd (sec)",
+                                kmax=10, use_log=True, xlim_max=30, bins=120,
+                                out_png="gmm_emp_vs_sim.png"):
+    # 1) Data
+    t = _read_filtered(csv_path, col)
+
+    # 2) Fit (optioneel op log-schaal)
+    if use_log:
+        y = np.log1p(t)                    # y = log(1+t)
+        gmm, k, bics = _fit_gmm_bic(y, kmax)
+        # 3) Simulatie uit GMM en terugtransformeren
+        y_sim, _ = gmm.sample(len(t))
+        t_sim = np.expm1(y_sim.ravel())
+        # 4) Theoretische PDF op x-grid met jacobian
+        xgrid = np.linspace(0, np.percentile(t, 99.5), 1200)
+        ygrid = np.log1p(xgrid)
+        logpdf_y = gmm.score_samples(ygrid.reshape(-1,1))
+        pdf_x = np.exp(logpdf_y) / (1.0 + xgrid)  # chain rule
+    else:
+        gmm, k, bics = _fit_gmm_bic(t, kmax)
+        xgrid = np.linspace(0, np.percentile(t, 99.5), 1200)
+        t_sim, _ = gmm.sample(len(t))
+        t_sim = t_sim.ravel()
+        logpdf = gmm.score_samples(xgrid.reshape(-1,1))
+        pdf_x = np.exp(logpdf)
+
+    # 5) Plot: empirisch vs simulatie + theoretische PDF
+    plt.figure(figsize=(11,6))
+    plt.hist(t, bins=bins, density=True, alpha=0.45, label="Empirisch (gefilterd)")
+    plt.hist(t_sim, bins=bins, density=True, alpha=0.35, label="Gesimuleerd uit GMM")
+    plt.plot(xgrid, pdf_x, label=f"Theoretische GMM-PDF (k={k})", linewidth=2)
+    plt.xlabel("Picktijd (sec)")
+    plt.ylabel("Dichtheid")
+    plt.xlim(0, xlim_max)
+    plt.title("Empirisch vs Gesimuleerd vs Theoretische GMM-fit")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(out_png, dpi=200)
+    plt.show()
+    print(f"Plot opgeslagen als '{out_png}'")
+
+    # 6) Snelle goodness-of-fit (empirisch vs simulatie)
+    #   (KS tussen twee samples — indicatief)
+    from scipy.stats import ks_2samp
+    ks_stat, ks_p = ks_2samp(t, t_sim)
+    print(f"KS(empirisch vs simulatie): stat={ks_stat:.4f}, p={ks_p:.4f}")
+
+def cluster_pickers_fixed_k(features_df, k=3,
+                            feature_cols=('mu_log','sd_log','frac_fast2'),
+                            random_state=42):
+    X = features_df[list(feature_cols)].values
+    Xs = StandardScaler().fit_transform(X)
+    gmm = GaussianMixture(n_components=k, covariance_type='full',
+                          random_state=random_state, n_init=10, max_iter=500)
+    labels = gmm.fit_predict(Xs)
+    out = features_df.copy()
+    out['cluster'] = labels
+    return out, gmm
+
+def fit_gmm_fixed_k(t, k=3, use_log=True):
+    if use_log:
+        y = np.log1p(t).reshape(-1,1)
+        gmm = GaussianMixture(n_components=k, covariance_type="full",
+                              random_state=42, n_init=10, max_iter=500, reg_covar=1e-4)
+        gmm.fit(y)
+        # PDF op x-grid met jacobian
+        xgrid = np.linspace(0, np.percentile(t, 99.5), 1200)
+        ygrid = np.log1p(xgrid).reshape(-1,1)
+        pdf_x = np.exp(gmm.score_samples(ygrid)) / (1.0 + xgrid)
+        # simulatie
+        y_sim, _ = gmm.sample(len(t))
+        t_sim = np.expm1(y_sim.ravel())
+        return xgrid, pdf_x, t_sim, gmm
+    else:
+        X = t.reshape(-1,1)
+        gmm = GaussianMixture(n_components=k, covariance_type="full",
+                              random_state=42, n_init=10, max_iter=500, reg_covar=1e-4)
+        gmm.fit(X)
+        xgrid = np.linspace(0, np.percentile(t, 99.5), 1200).reshape(-1,1)
+        pdf_x = np.exp(gmm.score_samples(xgrid))
+        t_sim, _ = gmm.sample(len(t)); t_sim = t_sim.ravel()
+        return xgrid.ravel(), pdf_x, t_sim, gmm
+
+def plot_emp_vs_gmm_k3(csv_path="test.csv", col="Picktijd (sec)", xlim_max=30, bins=120, out_png="gmm_k3_emp_vs_sim.png"):
+    df = pd.read_csv(csv_path, usecols=[col]).dropna()
+    t_all = pd.to_numeric(df[col], errors="coerce").dropna().values.astype(float)
+    # IQR-filter zoals eerder
+    q1,q3 = np.percentile(t_all,[25,75]); iqr=q3-q1; lo,hi=q1-1.5*iqr, q3+1.5*iqr
+    t = t_all[(t_all>=lo)&(t_all<=hi)]
+
+    xgrid, pdf_x, t_sim, _ = fit_gmm_fixed_k(t, k=3, use_log=True)
+
+    plt.figure(figsize=(11,6))
+    plt.hist(t, bins=bins, density=True, alpha=0.45, label="Empirisch (gefilterd)")
+    plt.hist(t_sim, bins=bins, density=True, alpha=0.35, label="Gesimuleerd uit GMM (k=3)")
+    plt.plot(xgrid, pdf_x, linewidth=2, label="Theoretische GMM-PDF (k=3)")
+    plt.xlim(0, xlim_max); plt.xlabel("Picktijd (sec)"); plt.ylabel("Dichtheid")
+    plt.title("Empirisch vs Gesimuleerd vs GMM-fit (k=3, parsimonieus)")
+    plt.legend(); plt.grid(True); plt.tight_layout()
+    plt.savefig(out_png, dpi=200); plt.show()
+    print(f"Plot opgeslagen als '{out_png}'")
+
+def fit_cluster_lognorms(df_filt, assignments):
+    """Fit per cluster een lognormaal op y=log(1+t). Returnt parameters en gewichten."""
+    df = df_filt.merge(assignments[['Requester user code','cluster']], on='Requester user code', how='inner')
+    params = []
+    weights = []
+    for c in sorted(df['cluster'].unique()):
+        tc = df.loc[df['cluster']==c, 't'].values.astype(float)
+        y = np.log1p(tc)
+        mu, sigma = float(y.mean()), float(y.std(ddof=1))
+        params.append((mu, sigma))
+        weights.append(len(tc))
+    weights = np.array(weights, dtype=float)
+    weights /= weights.sum()
+    return params, weights
+
+def sample_from_cluster_mixture(n, params, weights, rng=None):
+    """Simuleer: kies cluster ~ weights; sample y ~ N(mu,sigma); zet terug t=exp(y)-1."""
+    rng = np.random.default_rng(rng)
+    comps = rng.choice(len(weights), size=n, p=weights)
+    ys = rng.normal(loc=np.array([params[k][0] for k in comps]),
+                    scale=np.array([params[k][1] for k in comps]))
+    ts = np.expm1(ys)
+    return ts
+
+def plot_emp_vs_cluster_mixture(df_filt, assignments, xlim_max=30, bins=120, out_png="mix3_emp_vs_sim.png"):
+    params, weights = fit_cluster_lognorms(df_filt, assignments)
+    t = df_filt['t'].values.astype(float)
+    t_sim = sample_from_cluster_mixture(len(t), params, weights, rng=42)
+
+    # Theoretische 3-componenten PDF via kettingregel
+    xgrid = np.linspace(0, np.percentile(t, 99.5), 1200)
+    ygrid = np.log1p(xgrid)
+    pdf = np.zeros_like(xgrid)
+    for (mu, sigma), w in zip(params, weights):
+        pdf_y = norm.pdf(ygrid, loc=mu, scale=sigma)
+        pdf += w * (pdf_y / (1.0 + xgrid))  # d/dx log(1+x) = 1/(1+x)
+
+    plt.figure(figsize=(11,6))
+    plt.hist(t, bins=bins, density=True, alpha=0.45, label="Empirisch (gefilterd)")
+    plt.hist(t_sim, bins=bins, density=True, alpha=0.35, label="Gesimuleerd uit 3-klassen-mengsel")
+    plt.plot(xgrid, pdf, linewidth=2, label="Theoretische 3-klassen-PDF (picker-clusters)")
+    plt.xlim(0, xlim_max); plt.xlabel("Picktijd (sec)"); plt.ylabel("Dichtheid")
+    plt.title("Empirisch vs Gesimuleerd vs 3-klassen (picker) mengsel")
+    plt.legend(); plt.grid(True); plt.tight_layout()
+    plt.savefig(out_png, dpi=200); plt.show()
+    print(f"Plot opgeslagen als '{out_png}'")
+
+if __name__ == "__main__":
+    pad = file_list = [
+        '../Data/Input/1_VerdelingItem01_03.xlsx',
+        '../Data/Input/2_VerdelingItem04_06.xlsx',
+        '../Data/Input/3_VerdelingItem07_09.xlsx',
+        '../Data/Input/4_VerdelingItem10_12.xlsx',
+        '../Data/Input/5_VerdelingItem13_15.xlsx',
+        '../Data/Input/6_VerdelingItem16_19.xlsx',
+    ]
+
+    InlezenJsonGegevens(pad,3,"bestellingen.json")
+    bereken_picktijden_uit_json("bestellingen.json", "test.csv")
+    analyseer_picktijden_met_filter("test.csv")
+    # #gmm_model = selecteer_best_aantal_componenten("test", max_components=40)
+    # #fit_en_plot_gmm_range("test","Picktijd (sec)",20, )
+    #
+    # fit_en_plot_gmm("test",7, xlim_max=30)
+    # gmm7 = fit_gmm_model("test", "Picktijd (sec)", 7)
+    # samples = sample_from_gmm(gmm7, 10)
+    # print("🕒 Gesimuleerde picktijden:", samples)
+
+    min_obs_per_picker = 150  # drempel voor robuuste picker-features
+
+    # 1) Data filteren (IQR)
+    df_filt = load_filtered_picktijden("test.csv", kolom="Picktijd (sec)")
+
+    # 2) Picker-features bouwen en clusteren (BIC kiest k, we forceren evt. k=3)
+    feats = build_picker_features(df_filt, min_n=min_obs_per_picker)
+    assignments, model, bic_table = cluster_pickers(
+        feats,
+        k_min=1, k_max=6,
+        feature_cols=('mu_log', 'sd_log', 'frac_fast2'),
+        random_state=42
+    )
+    if assignments['cluster'].nunique() != 3:
+        print(f"BIC koos k={assignments['cluster'].nunique()} → we refitten met k=3 voor de verklarende plot.")
+        assignments, _ = cluster_pickers_fixed_k(
+            feats, k=3,
+            feature_cols=('mu_log', 'sd_log', 'frac_fast2'),
+            random_state=42
+        )
+
+    # 3) Plot A: Empirisch vs gesimuleerd vs theoretische 3-klassen (picker-clusters)
+    #     (maakt en bewaart: 'mix3_emp_vs_sim.png')
+    plot_emp_vs_cluster_mixture(df_filt, assignments,
+                                xlim_max=30, bins=120,
+                                out_png="mix3_emp_vs_sim.png")
+
+    # 4) Plot B: Empirisch vs gesimuleerd vs GMM-fit (k=3, parsimonieus; geen picker-info)
+    #     (maakt en bewaart: 'gmm_k3_emp_vs_sim.png')
+    plot_emp_vs_gmm_k3(csv_path="test.csv",
+                       col="Picktijd (sec)",
+                       xlim_max=30, bins=120,
+                       out_png="gmm_k3_emp_vs_sim.png")
+
+    print("✅ Klaar: 'mix3_emp_vs_sim.png' en 'gmm_k3_emp_vs_sim.png' aangemaakt.")

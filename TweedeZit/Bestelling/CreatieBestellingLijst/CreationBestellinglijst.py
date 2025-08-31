@@ -42,10 +42,7 @@ def genereer_bestellingen(n_bestellingen: int, itemkansen: dict, r: float, p: fl
 
     print(f"✅ {n_bestellingen} bestellingen gegenereerd en opgeslagen in '{uitvoerpad}'")
 
-
-
-
-
-kans_dict = bereken_itemkansen("../Preprocessing/Globale_Itemcode_frequentie.json")
-genereer_bestellingen(100,kans_dict,0.6365,0.1340,"BestellingJson")
+if __name__ == "__main__":
+    kans_dict = bereken_itemkansen("../Preprocessing/Globale_Itemcode_frequentie.json")
+    genereer_bestellingen(100,kans_dict,0.6365,0.1340,"BestellingJson")
 

@@ -30,13 +30,13 @@ def compute_global_item_quantities(file_paths: list[str], sheet_name: str = 'Bes
 
     print(f"✅ JSON-bestand geschreven naar: {output_path}")
 
-
-file_list = [
-    '../../Data/Input/1_VerdelingItem01_03.xlsx',
-    '../../Data/Input/2_VerdelingItem04_06.xlsx',
-    '../../Data/Input/3_VerdelingItem07_09.xlsx',
-    '../../Data/Input/4_VerdelingItem10_12.xlsx',
-    '../../Data/Input/5_VerdelingItem13_15.xlsx',
-    '../../Data/Input/6_VerdelingItem16_19.xlsx',
-]
-compute_global_item_quantities(file_list)
+if __name__ == "__main__":
+    file_list = [
+        '../../Data/Input/1_VerdelingItem01_03.xlsx',
+        '../../Data/Input/2_VerdelingItem04_06.xlsx',
+        '../../Data/Input/3_VerdelingItem07_09.xlsx',
+        '../../Data/Input/4_VerdelingItem10_12.xlsx',
+        '../../Data/Input/5_VerdelingItem13_15.xlsx',
+        '../../Data/Input/6_VerdelingItem16_19.xlsx',
+    ]
+    compute_global_item_quantities(file_list)
